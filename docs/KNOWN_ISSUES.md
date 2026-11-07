@@ -1,4 +1,4 @@
-# KNOWN ISSUES (sahih pada 2026-11-08, sebelum pembaikan)
+# KNOWN ISSUES (dikemas kini 2026-11-08)
 
 | ID | Isu | Cara reproduksi | Status |
 |---|---|---|---|
@@ -8,7 +8,7 @@
 | K4 | FK tidak dikuatkuasakan pada sesetengah laluan | `pytest tests/integration/test_database_foreign_keys.py` | Terbuka |
 | K5 | 30 ujian gagal (22 lapuk) | `pytest` | Terbuka |
 | K6 | DB di dalam folder app; arahan "delete mirrorhub.db" | `RELEASE_NOTES.md` | Terbuka |
-| K7 | "Device Wall" bukan video | buka `/wall` | Terbuka |
+| K7 | "Device Wall" bukan video | buka `/device-wall` | **DIBETULKAN** (video embedded; hardware belum diuji) |
 | K8 | `config.host` = `0.0.0.0` (LAN exposure, Dev Mode) | `python run.py` sebelum pembaikan | **DIBETULKAN** |
 | K9 | `/ws/stream`, `/ws/view` (laluan ejen Android / JPEG lama) tidak diaudit | — | Terbuka |
 | K10 | Port 8000 tetap; jika dipakai, app tidak bermula dengan mesej jelas | — | Terbuka |

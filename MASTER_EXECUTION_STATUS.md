@@ -12,12 +12,13 @@ Dikemas kini: 2026-11-08 · Branch: `dev/desktop-v1` (baseline `f0688a7` di `mai
 | 03–05 | Belum mula | pemasang perlu PyInstaller + Inno Setup |
 | 06–09 | Belum mula / disekat | tiada JDK/Android SDK; cloud perlu kelulusan |
 
-## Seterusnya (boleh dibuat tanpa hardware)
-1. `services/scrcpy_stream.py` (raw H.264 NAL splitter + sesi server) + ujian unit.
-2. Perkukuhkan `adb_control` + WS control (validasi, device_id, audit) + ujian.
-3. Pasang kunci Origin/token, bind loopback.
-4. Device Wall UI dengan `<canvas>` per peranti.
+## Seterusnya
+1. **(perlu telefon)** Sahkan pelancaran scrcpy-server 4.0 (`raw_stream`) pada 1 telefon, kemudian 2; rekod FPS/CPU/RAM/latency. Jika server menolak `raw_stream`, gunakan mod framing (ADR-002).
+2. Data pengguna ke `%APPDATA%\Mirrorhub` (ADR-005) + migrasi dengan backup.
+3. Pairing UI (WiFi pairing code, USB hot-plug), device manager, APK/fail.
+4. Bersihkan 30 ujian lama; betulkan FK (K4).
+5. Pemasang: PyInstaller (pip, venv) + Inno Setup (**perlu kelulusan pasang**), semakan lesen binari.
 
 ## Blocker luaran
-- Sambung ≥1 (sasaran 2–4) telefon Android (USB debugging dibenarkan) untuk pengesahan gate PoC.
-- Kelulusan: push GitHub; pasang Inno Setup (winget) untuk pemasang.
+- Sambung 2 atau lebih telefon Android (USB debugging dibenarkan) untuk gate PoC/Fasa 02.
+- Kelulusan pemilik: push ke GitHub (repo kosong); memasang Inno Setup.

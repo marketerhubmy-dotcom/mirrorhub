@@ -13,9 +13,10 @@
 - **Kawalan:** laluan adb shell berterusan yang diperkuat (ADR-003). Kawalan melalui soket kawalan scrcpy ditangguh (perlu protokol 4.0 yang disahkan pada hardware).
 - **Status:** kod + ujian unit terhadap strim sintetik. **Pengesahan pada telefon sebenar: NOT TESTED.** Jika `raw_stream` ditolak oleh server 4.0 pada peranti, fallback = framing mode (`send_frame_meta=true`) dengan probe diagnostik.
 
-## ADR-003 — Kawalan input dikunci kepada device_id + validasi ketat
-- Semua arahan melalui satu `DeviceControl` per serial; payload divalidasi (jenis, julat 0–1, panjang), kekunci hanya daripada senarai putih/integer, teks **tidak** pernah diinterpolasi ke shell (guna `input text` dengan aksara dilucutkan kepada set selamat, atau jalur `ime`/broadcast ditangguh; aksara di luar set ditolak dengan ralat jelas).
-- Setiap arahan menyertakan `device_id` yang mesti sepadan dengan soket WS; dilog (audit) dengan device_id.
+## ADR-003 — Kawalan input dikunci kepada device_id + validasi ketat (DILAKSANAKAN)
+- Payload divalidasi (jenis, koordinat 0-1 terhingga, teks maks 500 tanpa aksara kawalan, keycode integer 0-400 atau `KEYCODE_*`, serial `[A-Za-z0-9._:-]`). Teks dipetik POSIX (petikan tunggal) sebelum ditaip ke shell berterusan; baris baharu ditolak. Ralat dinaikkan sebagai `ControlError` dan dibalas kepada klien (tidak lagi ditelan).
+- Setiap mesej WS boleh membawa `device_id`; jika berbeza daripada soket, ditolak. Dilog audit (`mirrorhub.control.audit`).
+- Had: `input text` Android tidak menyokong aksara bukan-ASCII; `%s` literal menjadi ruang.
 
 ## ADR-004 — Perlindungan WebSocket/API lokal (DILAKSANAKAN)
 - Server bind `127.0.0.1` sahaja: `config.host` default ditukar daripada `0.0.0.0`; `effective_bind_host()` menolak antara muka bukan-loopback kecuali `ALLOW_REMOTE_BIND=true`.

@@ -266,7 +266,7 @@ class StreamSession:
     error: str = ""
     server_log: deque = field(default_factory=lambda: deque(maxlen=40))
     started_at: float = 0.0
-    on_event: Callable[[dict], None] | None = None
+    listeners: set = field(default_factory=set)  # callables(dict) notified on state change
     _task: asyncio.Task | None = None
     _proc: asyncio.subprocess.Process | None = None
     _port: int | None = None
@@ -277,8 +277,15 @@ class StreamSession:
 
     def _set(self, state: str, error: str = "") -> None:
         self.state, self.error = state, error
-        if self.on_event:
-            self.on_event({"event": "state", "state": state, "error": error})
+        for cb in list(self.listeners):
+            try:
+                cb(self.status())
+            except Exception:  # a broken viewer must never break the stream
+                logger.exception("stream listener failed")
+
+    def status(self) -> dict:
+        return {"event": "state", "state": self.state, "error": self.error,
+                "device_id": self.device_id, "profile": self.profile}
 
     def start(self) -> None:
         if self._task and not self._task.done():

@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.core.logging_config import setup_logging
+from app.core.security import LoopbackGuardMiddleware
 from app.models.database import init_db
 from app.migration import safe_migrate_db, safe_create_indexes
 from app.api.router import api_router
@@ -67,23 +68,29 @@ async def lifespan(app: FastAPI):
         _monitor_task.cancel()
         stop_agents()
         _agent_task.cancel()
+        from app.services.scrcpy_stream import stream_manager
+        await stream_manager.stop_all()
         logger.info("MirrorHub shutdown complete")
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
-_cors_origins = (
-    [o.strip() for o in settings.cors_origins.split(",")]
-    if settings.cors_origins != "*"
-    else ["*"]
-)
+# Only the local UI may talk to this API (ADR-004). "*" in CORS_ORIGINS is no longer
+# honoured: the API drives physical phones without authentication.
+_extra_origins = {
+    o.strip() for o in settings.cors_origins.split(",") if o.strip() and o.strip() != "*"
+}
+if settings.cors_origins.strip() == "*":
+    logger.warning("CORS_ORIGINS=* ignored; only loopback origins are allowed")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
+    allow_origin_regex=r"^https?://(127\.0\.0\.1|localhost|\[::1\])(:\d{1,5})?$",
+    allow_origins=sorted(_extra_origins),
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(LoopbackGuardMiddleware, extra_origins=_extra_origins)
 
 app.include_router(api_router)
 
@@ -110,7 +117,7 @@ async def ws_control(device_id: str, ws: WebSocket, db: AsyncSession = Depends(g
 
 @app.websocket("/ws/video/{device_id}")
 async def ws_video(device_id: str, ws: WebSocket, db: AsyncSession = Depends(get_db)):
-    """H264 stream from ADB screenrecord → browser WebCodecs decoder."""
+    """Embedded scrcpy H.264 NAL stream → browser WebCodecs decoder (?profile=thumb|normal|focus)."""
     await video_endpoint(device_id, ws, db)
 
 

@@ -9,4 +9,10 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=False)
+    from app.core.security import effective_bind_host
+    uvicorn.run(
+        "app.main:app",
+        host=effective_bind_host(settings.host, settings.allow_remote_bind),
+        port=settings.port,
+        reload=False,
+    )

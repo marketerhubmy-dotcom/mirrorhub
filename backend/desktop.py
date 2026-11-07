@@ -12,6 +12,7 @@ import webview
 
 
 def _start_backend() -> None:
+    # Loopback only: the API controls phones without authentication.
     uvicorn.run(
         "app.main:app",
         host="127.0.0.1",

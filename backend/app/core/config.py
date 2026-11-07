@@ -4,7 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # ── Core ──────────────────────────────────────────────────────────────────
     app_name: str = "MirrorHub"
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"  # loopback only; see app/core/security.py
+    allow_remote_bind: bool = False  # env ALLOW_REMOTE_BIND=true — exposes unauthenticated phone control to the LAN
     port: int = 8000
     database_url: str = "sqlite+aiosqlite:///./mirrorhub.db"
 

@@ -5,7 +5,8 @@ Dikemas kini: 2026-11-08 · Branch: `dev/desktop-v1` (baseline `f0688a7` di `mai
 | Fasa | Status | Catatan |
 |---|---|---|
 | 00 Audit | **SIAP (docs)** | `docs/AUDIT.md`, `DECISIONS.md`, `QA_MATRIX.md`, `FEATURE_BACKLOG.md`, `KNOWN_ISSUES.md` |
-| 00 PoC 2-stream embedded | KOD DALAM PROSES | gate hardware NOT TESTED (0 telefon) |
+| 00 PoC 2-stream embedded | **KOD SIAP; simulasi PASS; hardware NOT TESTED** | 0 telefon. Pelayar+hub+kawalan disahkan dengan harness; pelancaran scrcpy-server 4.0 pada peranti belum |
+| 01 (sebahagian) | Keselamatan loopback SIAP; Device Wall embedded + DevicePage SIAP | data→AppData belum |
 | 01 Desktop foundation | Belum mula | data → `%APPDATA%`, token/Origin |
 | 02 Multi-phone mirroring | Belum mula | bergantung PoC |
 | 03–05 | Belum mula | pemasang perlu PyInstaller + Inno Setup |

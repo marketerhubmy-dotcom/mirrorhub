@@ -1,201 +1,133 @@
-import { useEffect, useRef, useState } from "react";
-import { getFleet, setMaintenance, releaseDevice, type DeviceProfile } from "../services/orchestratorApi";
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import DeviceTile from '../components/DeviceTile'
+import { useDevices } from '../hooks/useDevices'
 
-const STATUS_COLOR: Record<string, string> = {
-  IDLE: "bg-green-500",
-  BUSY: "bg-blue-500",
-  MAINTENANCE: "bg-yellow-500",
-  OFFLINE: "bg-gray-500",
-  DISCONNECTED: "bg-red-500",
-  RECOVERING: "bg-orange-500",
-  PAUSED: "bg-purple-500",
-  ONLINE: "bg-teal-500",
-};
+type Layout = 'auto' | 1 | 2 | 4 | 9
 
-function ScoreBar({ score }: { score: number }) {
-  const pct = (score / 10) * 100;
-  const color = score >= 7 ? "bg-green-400" : score >= 4 ? "bg-yellow-400" : "bg-red-400";
-  return (
-    <div className="flex items-center gap-1">
-      <div className="w-16 h-2 bg-gray-700 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs text-gray-400">{score.toFixed(1)}</span>
-    </div>
-  );
+function columnsFor(layout: Layout, count: number): number {
+  if (layout === 1) return 1
+  if (layout === 2) return 2
+  if (layout === 4) return 2
+  if (layout === 9) return 3
+  if (count <= 1) return 1
+  if (count <= 4) return 2
+  if (count <= 9) return 3
+  return 4
 }
 
-function DeviceCard({
-  device,
-  onMaintenance,
-  onRelease,
-}: {
-  device: DeviceProfile;
-  onMaintenance: (id: string) => void;
-  onRelease: (id: string) => void;
-}) {
-  const dotColor = STATUS_COLOR[device.status] || "bg-gray-500";
-  const isMaintenance = device.status === "MAINTENANCE";
-  const isOffline = device.status === "OFFLINE" || device.status === "DISCONNECTED";
-
-  return (
-    <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
-          <span className="font-mono text-sm text-white truncate max-w-[140px]" title={device.device_id}>
-            {device.device_id.slice(0, 8)}…
-          </span>
-        </div>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${dotColor} bg-opacity-20 text-white`}>
-          {device.status}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-y-1 text-xs text-gray-400">
-        <span>Score</span>
-        <ScoreBar score={device.health.performance_score} />
-        <span>Latency</span>
-        <span className="text-white">{device.health.latency_ms.toFixed(0)} ms</span>
-        <span>Android</span>
-        <span className="text-white">{device.capabilities.android_version || "—"}</span>
-        <span>RAM</span>
-        <span className="text-white">{device.capabilities.ram_mb ? `${device.capabilities.ram_mb} MB` : "—"}</span>
-        <span>Jobs done</span>
-        <span className="text-white">{device.stats.total_jobs_completed}</span>
-        <span>Success rate</span>
-        <span className="text-white">{device.stats.success_rate}%</span>
-      </div>
-
-      <div className="flex gap-2 mt-auto">
-        {!isMaintenance && !isOffline && (
-          <button
-            onClick={() => onMaintenance(device.device_id)}
-            className="flex-1 text-xs py-1 rounded bg-yellow-700 hover:bg-yellow-600 text-white"
-          >
-            Maintenance
-          </button>
-        )}
-        {isMaintenance && (
-          <button
-            onClick={() => onRelease(device.device_id)}
-            className="flex-1 text-xs py-1 rounded bg-green-700 hover:bg-green-600 text-white"
-          >
-            Release
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+const LAYOUTS: Layout[] = ['auto', 1, 2, 4, 9]
 
 export default function DeviceWallPage() {
-  const [fleet, setFleet] = useState<DeviceProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [events, setEvents] = useState<string[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+  const { devices, loading, error } = useDevices(3000)
+  const [layout, setLayout] = useState<Layout>('auto')
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const [pausedAll, setPausedAll] = useState(false)
+  const [pausedIds, setPausedIds] = useState<Set<string>>(new Set())
+  const [query, setQuery] = useState('')
 
-  const load = async () => {
-    try {
-      const data = await getFleet();
-      setFleet(data.devices);
-    } catch {
-      // keep stale data
-    } finally {
-      setLoading(false);
-    }
-  };
+  const wallDevices = useMemo(
+    () => devices
+      .filter((d) => d.adb_address)
+      .filter((d) => d.device_name.toLowerCase().includes(query.toLowerCase())),
+    [devices, query],
+  )
 
-  useEffect(() => {
-    load();
-    const iv = setInterval(load, 30_000);
+  const focused = focusId ? wallDevices.find((d) => d.device_id === focusId) ?? null : null
+  const others = focused ? wallDevices.filter((d) => d.device_id !== focused.device_id) : wallDevices
+  const cols = columnsFor(layout, wallDevices.length)
+  // Many tiles => low-FPS thumbnails; few tiles => smoother "normal" profile.
+  const wallProfile = wallDevices.length > 4 ? 'thumb' : 'normal'
 
-    const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/orchestrator/fleet`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+  const togglePause = (id: string) =>
+    setPausedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
 
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        setEvents((prev) => [`[${new Date().toLocaleTimeString()}] ${msg.event}: ${JSON.stringify(msg.data)}`, ...prev].slice(0, 50));
-        // Refresh fleet on any device event
-        if (["device_connected", "device_lost", "failover"].includes(msg.event)) {
-          load();
-        }
-      } catch {}
-    };
-
-    return () => {
-      clearInterval(iv);
-      ws.close();
-    };
-  }, []);
-
-  const handleMaintenance = async (id: string) => {
-    await setMaintenance(id);
-    load();
-  };
-
-  const handleRelease = async (id: string) => {
-    await releaseDevice(id);
-    load();
-  };
-
-  const statusCounts = fleet.reduce<Record<string, number>>((acc, d) => {
-    acc[d.status] = (acc[d.status] || 0) + 1;
-    return acc;
-  }, {});
+  const isPaused = (id: string) => pausedAll || pausedIds.has(id)
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Device Wall</h1>
-        <p className="text-gray-400 text-sm mb-6">Live fleet status — refreshes every 30s</p>
+    <div className="h-screen flex flex-col bg-gray-900 text-white">
+      <header className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-gray-800">
+        <Link to="/" className="text-gray-400 hover:text-white text-sm">← Dashboard</Link>
+        <h1 className="font-semibold">Device Wall</h1>
+        <span className="text-xs text-gray-400">{wallDevices.length} peranti</span>
 
-        {/* Summary badges */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          {Object.entries(statusCounts).map(([status, count]) => (
-            <span
-              key={status}
-              className={`text-xs px-3 py-1 rounded-full ${STATUS_COLOR[status] || "bg-gray-600"} bg-opacity-30 border border-white/10`}
-            >
-              {status} · {count}
-            </span>
-          ))}
-          <span className="text-xs px-3 py-1 rounded-full bg-gray-700 border border-white/10">
-            Total · {fleet.length}
-          </span>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <input
+            value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari peranti…"
+            className="bg-gray-800 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 w-40"
+          />
+          <div className="flex rounded-lg overflow-hidden border border-gray-700" role="group" aria-label="Susun atur">
+            {LAYOUTS.map((l) => (
+              <button
+                key={String(l)} onClick={() => setLayout(l)} aria-pressed={layout === l}
+                className={`px-2.5 py-1.5 text-xs ${layout === l ? 'bg-indigo-600' : 'bg-gray-800 hover:bg-gray-700'}`}
+              >
+                {l === 'auto' ? 'Auto' : l}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setPausedAll((p) => !p)}
+            className="px-3 py-1.5 rounded-lg text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700"
+          >
+            {pausedAll ? '▶ Sambung semua' : '⏸ Jeda semua'}
+          </button>
         </div>
+      </header>
 
+      {error && (
+        <div className="px-5 py-2 text-sm bg-red-900/40 text-red-200 border-b border-red-900">
+          Tidak dapat mengambil senarai peranti: {error}
+        </div>
+      )}
+
+      <main className="flex-1 min-h-0 p-4">
         {loading ? (
-          <div className="text-gray-400">Loading fleet…</div>
-        ) : fleet.length === 0 ? (
-          <div className="text-gray-400">No devices registered. Connect a device first.</div>
+          <p className="text-gray-400">Memuatkan peranti…</p>
+        ) : wallDevices.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 text-center text-gray-400">
+            <p>{devices.length === 0 ? 'Tiada peranti didaftarkan.' : 'Tiada peranti sepadan dengan carian.'}</p>
+            <Link to="/" className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-500">
+              Sambung peranti di Dashboard
+            </Link>
+          </div>
+        ) : focused ? (
+          <div className="h-full grid gap-3" style={{ gridTemplateColumns: 'minmax(0,1fr) 220px' }}>
+            <DeviceTile
+              key={`${focused.device_id}-focus`} device={focused} profile="focus" focused
+              paused={isPaused(focused.device_id)} onFocus={() => setFocusId(null)}
+              onTogglePause={() => togglePause(focused.device_id)}
+            />
+            <div className="flex flex-col gap-3 overflow-y-auto min-h-0">
+              {others.map((d) => (
+                <div key={d.device_id} className="h-72 shrink-0">
+                  <DeviceTile
+                    device={d} profile="thumb" paused={isPaused(d.device_id)}
+                    onFocus={() => setFocusId(d.device_id)} onTogglePause={() => togglePause(d.device_id)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
-            {fleet.map((d) => (
-              <DeviceCard
-                key={d.device_id}
-                device={d}
-                onMaintenance={handleMaintenance}
-                onRelease={handleRelease}
+          <div
+            className="h-full grid gap-3 overflow-auto"
+            style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`, gridAutoRows: 'minmax(260px, 1fr)' }}
+          >
+            {others.map((d) => (
+              <DeviceTile
+                key={`${d.device_id}-${wallProfile}`} device={d} profile={wallProfile}
+                paused={isPaused(d.device_id)} onFocus={() => setFocusId(d.device_id)}
+                onTogglePause={() => togglePause(d.device_id)}
               />
             ))}
           </div>
         )}
-
-        {/* Live event log */}
-        <div>
-          <h2 className="text-sm font-semibold text-gray-300 mb-2">Live Events</h2>
-          <div className="bg-gray-800 rounded-lg p-3 h-40 overflow-y-auto font-mono text-xs text-gray-400 space-y-1">
-            {events.length === 0 ? (
-              <span className="text-gray-600">Waiting for events…</span>
-            ) : (
-              events.map((e, i) => <div key={i}>{e}</div>)
-            )}
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
-  );
+  )
 }

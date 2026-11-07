@@ -3,8 +3,9 @@
 Pipeline:  scrcpy-server (raw H.264, Annex-B) --adb forward--> NAL splitter
            --> StreamHub (GOP cache + per-viewer queues) --> WebSocket --> WebCodecs.
 
-Wire format to the browser: every binary WebSocket message is ONE NAL unit
-prefixed with a 4-byte Annex-B start code (00 00 00 01). Status events are JSON
+Wire format to the browser: every binary WebSocket message is ONE picture (access
+unit): its NAL units, each prefixed with a 4-byte Annex-B start code. Keyframe
+pictures always include SPS+PPS. Status events are JSON
 text messages.
 
 HARDWARE STATUS: the splitter/hub are unit-tested with synthetic streams. The
@@ -108,6 +109,52 @@ class AnnexBSplitter:
         return [nal] if len(nal) > 4 else []
 
 
+# ── access units ──────────────────────────────────────────────────────────────
+
+def iter_nals(au: bytes) -> list[bytes]:
+    """Split a normalised access unit (4-byte start codes only) back into NALs."""
+    parts = au.split(START4)
+    return [START4 + p for p in parts if p]
+
+
+class AccessUnitAssembler:
+    """Group NALs into pictures (access units).
+
+    Encoders may split one picture into several slices; WebCodecs needs the whole
+    picture in one chunk. A new picture starts at a VCL NAL whose first_mb_in_slice
+    is 0 (first payload bit set), or at SPS/PPS/SEI/AUD following VCL data. Since the
+    next picture's first NAL is what completes the previous one, this adds no latency
+    beyond the splitter's own (the caller flushes both after an idle gap).
+    """
+
+    def __init__(self) -> None:
+        self._nals: list[bytes] = []
+        self._has_vcl = False
+
+    def _take(self) -> bytes:
+        au = b"".join(self._nals)
+        self._nals, self._has_vcl = [], False
+        return au
+
+    def feed(self, nal: bytes) -> list[bytes]:
+        t = nal_type(nal)
+        out: list[bytes] = []
+        if t in (NAL_SLICE, NAL_IDR):
+            first_slice = len(nal) > 5 and bool(nal[5] & 0x80)
+            if self._has_vcl and first_slice:
+                out.append(self._take())
+            self._nals.append(nal)
+            self._has_vcl = True
+        elif t in (6, NAL_SPS, NAL_PPS, 9):
+            if self._has_vcl:
+                out.append(self._take())
+            self._nals.append(nal)
+        return out
+
+    def flush(self) -> list[bytes]:
+        return [self._take()] if self._has_vcl else []
+
+
 # ── hub: GOP cache + per-viewer back-pressure ─────────────────────────────────
 
 @dataclass(eq=False)  # identity semantics: viewers live in a set
@@ -118,7 +165,11 @@ class Viewer:
 
 
 class StreamHub:
-    """Fan-out of NAL units to many viewers; late joiners start from the last IDR."""
+    """Fan-out of access units; late joiners start from the last keyframe picture.
+
+    Every message is one picture. Keyframe pictures are always self-contained
+    (SPS+PPS prepended from cache if the encoder did not repeat them).
+    """
 
     def __init__(self, gop_limit_bytes: int = 4 * 1024 * 1024, viewer_queue: int = 90) -> None:
         self.sps: bytes | None = None
@@ -132,63 +183,60 @@ class StreamHub:
         self.bytes = 0
 
     def subscribe(self) -> Viewer:
-        v = Viewer(queue=asyncio.Queue(maxsize=self._viewer_queue))
-        for nal in self._prime():
-            v.queue.put_nowait(nal)
+        # Room for the whole cached GOP (can be hundreds of pictures) plus live headroom.
+        v = Viewer(queue=asyncio.Queue(maxsize=self._viewer_queue + len(self._gop)))
+        for au in self._gop:
+            v.queue.put_nowait(au)
         self.viewers.add(v)
         return v
 
     def unsubscribe(self, v: Viewer) -> None:
         self.viewers.discard(v)
 
-    def _prime(self) -> list[bytes]:
-        if not (self.sps and self.pps and self._gop):
-            return []
-        return [self.sps, self.pps, *self._gop]
-
-    def push(self, nal: bytes) -> None:
-        t = nal_type(nal)
-        self.bytes += len(nal)
-        if t == NAL_SPS:
-            self.sps = nal
-        elif t == NAL_PPS:
-            self.pps = nal
-        elif t == NAL_IDR:
-            self._gop = [nal]
-            self._gop_bytes = len(nal)
-            self.frames += 1
-        elif t == NAL_SLICE:
-            self.frames += 1
-            if self._gop:
-                if self._gop_bytes + len(nal) > self._gop_limit:
-                    self._gop = []  # too long without a keyframe: stop caching
-                    self._gop_bytes = 0
-                else:
-                    self._gop.append(nal)
-                    self._gop_bytes += len(nal)
-        for v in list(self.viewers):
-            self._deliver(v, nal, t)
-
-    def _deliver(self, v: Viewer, nal: bytes, t: int) -> None:
-        if v.waiting_key:
-            if t in (NAL_SPS, NAL_PPS):
-                pass  # config is always welcome
-            elif t == NAL_IDR:
-                v.waiting_key = False
+    def push(self, au: bytes) -> None:
+        types = {nal_type(n) for n in iter_nals(au)}
+        is_key = NAL_IDR in types
+        if NAL_SPS in types or NAL_PPS in types:
+            for n in iter_nals(au):
+                if nal_type(n) == NAL_SPS:
+                    self.sps = n
+                elif nal_type(n) == NAL_PPS:
+                    self.pps = n
+        if is_key and not {NAL_SPS, NAL_PPS} <= types:
+            if not (self.sps and self.pps):
+                return  # cannot decode a keyframe without parameter sets
+            au = self.sps + self.pps + au
+        if not (is_key or NAL_SLICE in types):
+            return
+        self.bytes += len(au)
+        self.frames += 1
+        if is_key:
+            self._gop, self._gop_bytes = [au], len(au)
+        elif self._gop:
+            if self._gop_bytes + len(au) > self._gop_limit:
+                self._gop, self._gop_bytes = [], 0  # too long without a keyframe: stop caching
             else:
+                self._gop.append(au)
+                self._gop_bytes += len(au)
+        for v in list(self.viewers):
+            self._deliver(v, au, is_key)
+
+    def _deliver(self, v: Viewer, au: bytes, is_key: bool) -> None:
+        if v.waiting_key:
+            if not is_key:
                 v.dropped += 1
                 return
+            v.waiting_key = False
         try:
-            v.queue.put_nowait(nal)
+            v.queue.put_nowait(au)
         except asyncio.QueueFull:
             # slow viewer: drop its backlog and wait for the next keyframe
             while not v.queue.empty():
                 v.queue.get_nowait()
-            v.waiting_key = True
+            v.waiting_key = not is_key
             v.dropped += 1
-            if self.sps and self.pps:  # re-prime config so the next IDR decodes
-                v.queue.put_nowait(self.sps)
-                v.queue.put_nowait(self.pps)
+            if is_key:
+                v.queue.put_nowait(au)
 
 
 # ── adb helpers (monkeypatchable in tests) ────────────────────────────────────
@@ -374,25 +422,32 @@ class StreamSession:
             pass
 
     async def _pump(self, reader: asyncio.StreamReader) -> None:
-        splitter = AnnexBSplitter()
+        splitter, assembler = AnnexBSplitter(), AccessUnitAssembler()
+
+        def emit(nals: list[bytes]) -> None:
+            for nal in nals:
+                for au in assembler.feed(nal):
+                    self.hub.push(au)
+
         chunk = self._first
         self._first = b""
         while True:
-            for nal in splitter.feed(chunk):
-                self.hub.push(nal)
+            emit(splitter.feed(chunk))
             try:
                 chunk = await asyncio.wait_for(reader.read(READ_SIZE), IDLE_FLUSH_S)
             except asyncio.TimeoutError:
-                # Static screen: scrcpy sends nothing, so the last NAL would sit unseen.
+                # Static screen: scrcpy sends nothing, so the last picture would sit unseen.
                 # A full-size previous read means more bytes of a large NAL are likely
                 # still in flight, so do not cut it short.
                 if len(chunk) < READ_SIZE:
-                    for nal in splitter.flush():
-                        self.hub.push(nal)
+                    emit(splitter.flush())
+                    for au in assembler.flush():
+                        self.hub.push(au)
                 chunk = await reader.read(READ_SIZE)
             if not chunk:
-                for nal in splitter.flush():
-                    self.hub.push(nal)
+                emit(splitter.flush())
+                for au in assembler.flush():
+                    self.hub.push(au)
                 raise ConnectionError("video stream closed")
 
     async def _run(self) -> None:

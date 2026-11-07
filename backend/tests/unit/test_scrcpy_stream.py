@@ -8,7 +8,7 @@ import asyncio
 import pytest
 
 from app.services import scrcpy_stream as ss
-from app.services.scrcpy_stream import START4, AnnexBSplitter, StreamHub, StreamSession
+from app.services.scrcpy_stream import START4, AccessUnitAssembler, AnnexBSplitter, StreamHub, StreamSession
 
 SPS = START4 + b"\x67\x42\xc0\x1e\xaa\xbb"
 PPS = START4 + b"\x68\xce\x3c\x80"
@@ -55,7 +55,41 @@ def test_splitter_discards_leading_garbage_and_survives_no_start_code():
     assert sp.flush() == [PPS]
 
 
+# ── access units ──────────────────────────────────────────────────────────────
+
+P1B = START4 + b"\x41\x0a\x05\x06"      # continuation slice (first_mb_in_slice != 0)
+IDR_B = START4 + b"\x65\x0a\x07\x08"
+SEI = START4 + b"\x06\x05\x01\xff"
+
+
+def aus(nals):
+    asm, out = AccessUnitAssembler(), []
+    for n in nals:
+        out += asm.feed(n)
+    return out + asm.flush()
+
+
+def test_assembler_single_slice_pictures():
+    assert aus([SPS, PPS, IDR, P1, P2]) == [SPS + PPS + IDR, P1, P2]
+
+
+def test_assembler_merges_multi_slice_pictures():
+    assert aus([SPS, PPS, IDR, IDR_B, P1, P1B, P2]) == [SPS + PPS + IDR + IDR_B, P1 + P1B, P2]
+
+
+def test_assembler_sei_starts_new_picture():
+    assert aus([IDR, SEI, P1]) == [IDR, SEI + P1]
+
+
+def test_assembler_flush_releases_pending_picture():
+    asm = AccessUnitAssembler()
+    assert asm.feed(P1) == [] and asm.flush() == [P1] and asm.flush() == []
+
+
 # ── hub ───────────────────────────────────────────────────────────────────────
+
+KEY = SPS + PPS + IDR
+
 
 def drain(v):
     out = []
@@ -64,53 +98,64 @@ def drain(v):
     return out
 
 
-def test_late_joiner_gets_config_and_current_gop():
+def test_late_joiner_gets_current_gop():
     hub = StreamHub()
-    for n in (SPS, PPS, IDR, P1):
-        hub.push(n)
+    for au in (KEY, P1):
+        hub.push(au)
     v = hub.subscribe()
-    assert drain(v) == [SPS, PPS, IDR, P1]
+    assert drain(v) == [KEY, P1]
     hub.push(P2)
     assert drain(v) == [P2]
 
 
-def test_new_idr_resets_gop_cache():
+def test_new_keyframe_resets_gop_cache():
     hub = StreamHub()
-    for n in (SPS, PPS, IDR, P1, IDR, P2):
-        hub.push(n)
-    assert drain(hub.subscribe()) == [SPS, PPS, IDR, P2]
+    for au in (KEY, P1, KEY, P2):
+        hub.push(au)
+    assert drain(hub.subscribe()) == [KEY, P2]
+
+
+def test_keyframe_without_params_gets_cached_sps_pps_prepended():
+    hub = StreamHub()
+    hub.push(KEY)
+    hub.push(IDR)  # encoder did not repeat parameter sets
+    assert drain(hub.subscribe()) == [KEY.replace(KEY, SPS + PPS + IDR)]
+    assert hub.frames == 2
+
+
+def test_keyframe_without_any_params_is_dropped():
+    hub = StreamHub()
+    hub.push(IDR)
+    assert hub.frames == 0 and drain(hub.subscribe()) == []
 
 
 def test_no_priming_before_first_keyframe():
     hub = StreamHub()
-    hub.push(SPS); hub.push(PPS); hub.push(P1)
+    hub.push(P1)
     assert drain(hub.subscribe()) == []
 
 
 def test_slow_viewer_drops_until_next_keyframe_without_affecting_fast_viewer():
     hub = StreamHub(viewer_queue=4)
-    for n in (SPS, PPS, IDR):
-        hub.push(n)
+    hub.push(KEY)
     fast, slow = hub.subscribe(), hub.subscribe()
     drain(fast); drain(slow)
-    for i in range(10):
+    for _ in range(10):
         hub.push(P1)
         drain(fast)                      # fast keeps up
     assert slow.waiting_key and slow.dropped > 0
     drain(slow)
-    hub.push(P2)                          # still waiting: P-frames are discarded
+    hub.push(P2)                          # still waiting: delta pictures are discarded
     assert drain(slow) == []
-    hub.push(IDR)
-    got = drain(slow)
-    assert got[-1] == IDR and not slow.waiting_key
-    assert len(got) >= 1
+    hub.push(KEY)
+    assert drain(slow) == [KEY] and not slow.waiting_key
 
 
 def test_hubs_are_isolated_per_device():
     a, b = StreamHub(), StreamHub()
     va, vb = a.subscribe(), b.subscribe()
-    a.push(SPS); a.push(PPS); a.push(IDR)
-    assert len(drain(va)) == 3 and drain(vb) == []
+    a.push(KEY)
+    assert len(drain(va)) == 1 and drain(vb) == []
 
 
 # ── server command / adb helpers ──────────────────────────────────────────────
@@ -162,7 +207,7 @@ async def _serve(chunks, delay=0.0):
 @pytest.mark.asyncio
 async def test_pump_delivers_nals_and_flushes_static_screen():
     # Last P-frame is followed by silence (static screen): must still be delivered.
-    data = stream(SPS, PPS, IDR, P1)
+    data = stream(SPS, PPS, IDR, IDR_B, P1, P1B)  # multi-slice pictures, then silence
     server, port = await _serve([data[:7], data[7:]], delay=0.01)
     async with server:
         sess = StreamSession("dev-A", "1.2.3.4:5555", "thumb")
@@ -170,7 +215,7 @@ async def test_pump_delivers_nals_and_flushes_static_screen():
         reader, _w = await asyncio.open_connection("127.0.0.1", port)
         with pytest.raises(ConnectionError):
             await sess._pump(reader)
-    assert drain(viewer) == [SPS, PPS, IDR, P1]
+    assert drain(viewer) == [SPS + PPS + IDR + IDR_B, P1 + P1B]
     assert sess.hub.frames == 2
 
 
@@ -190,5 +235,17 @@ async def test_two_sessions_two_devices_do_not_mix_streams():
             with pytest.raises(ConnectionError):
                 await sess._pump(r)
     got_a, got_b = drain(va), drain(vb)
-    assert P1 in got_a and P2 not in got_a
-    assert P2 in got_b and P1 not in got_b
+    assert got_a == [SPS + PPS + IDR, P1]
+    assert got_b == [SPS + PPS + IDR, P2]
+
+
+def test_late_joiner_with_gop_longer_than_viewer_queue():
+    # Regression: priming a 150-picture GOP into a 90-slot queue raised QueueFull.
+    hub = StreamHub(viewer_queue=90)
+    hub.push(KEY)
+    for _ in range(150):
+        hub.push(P1)
+    v = hub.subscribe()
+    assert v.queue.qsize() == 151
+    hub.push(P2)
+    assert not v.waiting_key

@@ -66,7 +66,7 @@ Punca 30 kegagalan (dari `--tb=line`):
 | S1 | `adb_control.input_text` hanya escape `\`, spasi, `'`. `'` → `\'` **dalam petikan tunggal** menutup petikan → *shell injection* pada peranti. `keyevent(code)` terus diinterpolasi tanpa validasi. Teks boleh datang daripada kandungan AI/scrape. | Tinggi |
 | S2 | WebSocket (`/ws/control`, `/ws/video`, …) **tiada semakan Origin/token**. Mana-mana laman web dalam pelayar pengguna boleh sambung ke `ws://127.0.0.1:8000/ws/control/<id>`. `device_id` = `uuid5(DNS, adb_address)` → boleh diteka (IP:port). CORS default `*` + `allow_credentials=True`. | Tinggi |
 | S3 | `control_endpoint` menelan semua exception (`except Exception: pass`), tiada validasi julat/jenis payload, tiada log audit per-device. | Sederhana |
-| S4 | `desktop.py` bind `127.0.0.1` (baik); `run.py` bind `settings.host` — default perlu disahkan dan dikunci loopback. | Rendah–Sederhana |
+| S4 | **`config.host` default = `0.0.0.0`; `run.py` (Dev Mode) mendedahkan API kawalan telefon tanpa pengesahan kepada seluruh LAN.** `desktop.py` bind 127.0.0.1 (baik). | **Tinggi** |
 | S5 | `ADB` hanya diurus melalui `shell` berterusan (stdout dibuang) → ralat arahan tidak kelihatan. | Sederhana |
 
 ## 7. Data & migrasi

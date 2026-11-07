@@ -1,0 +1,32 @@
+def build_youtube_create_workflow(
+    script: str,
+    image_local_path: str,
+    post_type: str = "draft",
+    schedule_time: str | None = None,
+    device_id: str = "",
+) -> list[dict]:
+    _d = {"device_id": device_id}  # Vision Engine context injected into every step
+    return [
+        {"type": "ytcreate_push_image", "local": image_local_path,
+         "label": "Upload gambar ke phone", "retry_max": 2, **_d},
+        {"type": "ytcreate_launch",
+         "label": "Buka YT Create", "retry_max": 3, **_d},
+        {"type": "ytcreate_new_project",
+         "label": "New project", "retry_max": 3, **_d},
+        {"type": "ytcreate_select_script",
+         "label": "Pilih Script mode", "retry_max": 2, **_d},
+        {"type": "ytcreate_paste_prompt", "script": script,
+         "label": "Input script", "retry_max": 2, **_d},
+        {"type": "ytcreate_add_image",
+         "label": "Tambah gambar produk", "retry_max": 2, **_d},
+        {"type": "ytcreate_generate",
+         "label": "Generate video", "retry_max": 1, **_d},
+        {"type": "ytcreate_wait_generation", "wait_seconds": 90,
+         "label": "Tunggu video siap", "retry_max": 1, **_d},
+        {"type": "ytcreate_export",
+         "label": "Export video", "retry_max": 2, **_d},
+        {"type": "ytcreate_share",
+         "label": "Share ke TikTok", "retry_max": 2, **_d},
+        {"type": "ytcreate_post", "post_type": post_type, "schedule_time": schedule_time,
+         "label": f"Post ({post_type})", "retry_max": 2, **_d},
+    ]

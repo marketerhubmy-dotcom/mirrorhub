@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MirrorHub Agent</string>
+    <string name="accessibility_service_label">MirrorHub Control</string>
+    <string name="notification_channel_name">MirrorHub Agent</string>
+    <string name="notification_text">Screen sharing active</string>
+</resources>

@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+
+# Android
+*.iml
+.gradle/
+local.properties
+.idea/
+*.apk
+*.aab
+*.keystore
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime / generated artefacts (added during audit)
+backend/uploads/
+backend/htmlcov/
+backend/.coverage
+backend/.pytest_cache/
+backend_log.txt
+mirrorhub_setup.log
+tools/last_device.txt
+
+# Third-party binaries: not redistributed from git (licence review pending, see docs/AUDIT.md)
+tools/scrcpy/

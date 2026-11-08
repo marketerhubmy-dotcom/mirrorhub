@@ -1,0 +1,17 @@
+Mirrorhub bundles the following third-party components. Their licences apply to those components only.
+
+scrcpy 4.0 (scrcpy.exe, scrcpy-server)       Apache License 2.0     https://github.com/Genymobile/scrcpy
+    Copyright (C) 2018 Genymobile, Romain Vimont. scrcpy-server runs on the phone to capture the screen.
+Android Debug Bridge (adb.exe, AdbWinApi.dll, AdbWinUsbApi.dll)
+    Part of Android SDK Platform-Tools; adb source is Apache License 2.0; the prebuilt binaries are distributed by Google
+    under the Android Software Development Kit License Agreement. https://developer.android.com/tools/releases/platform-tools
+FFmpeg libraries (avcodec-62, avformat-62, avutil-60, swresample-6)   LGPL-2.1+ (build configuration dependent)   https://ffmpeg.org
+SDL3 (SDL3.dll)                               zlib licence           https://libsdl.org
+libusb (libusb-1.0.dll)                       LGPL-2.1               https://libusb.info
+Python runtime, FastAPI, Starlette, uvicorn, SQLAlchemy, aiosqlite, pydantic, pywebview, pythonnet, httpx, Pillow ...
+    Each under its own permissive licence (MIT / BSD / Apache-2.0 / HPND); see the packages' metadata.
+Microsoft Edge WebView2 Runtime               Microsoft licence; provided by Windows / installed separately.
+React, React Router (frontend)                MIT
+
+Replacing a bundled LGPL library: the DLLs are loose files in the "tools" folder and may be replaced by a compatible build.
+Owner action pending: confirm redistribution terms of adb and the FFmpeg build configuration before public distribution.

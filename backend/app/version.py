@@ -9,10 +9,10 @@ import platform
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "1.0.0"
-VERSION_TUPLE = (1, 0, 0)
-RELEASE_NAME = "Stable"
-BUILD_DATE = "2026-07-11"
+VERSION = "1.1.0"
+VERSION_TUPLE = (1, 1, 0)
+RELEASE_NAME = "Performance"
+BUILD_DATE = "2026-11-09"
 
 # Plugins and modules that ship as part of this release
 PLUGIN_VERSIONS: dict[str, str] = {

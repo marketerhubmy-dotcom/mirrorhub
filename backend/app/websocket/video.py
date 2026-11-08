@@ -75,12 +75,18 @@ async def video_endpoint(device_id: str, ws: WebSocket, db: AsyncSession) -> Non
     try:
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for d in done:  # why did the socket end? (client left vs server-side failure)
-            exc = d.exception() if not d.cancelled() else None
-            logger.info("video ws %s/%s ended: %s", device_id[:8], profile, repr(exc) if exc else "task finished", exc_info=exc)
+            err = None if d.cancelled() else d.exception()
+            if err is not None and not isinstance(err, WebSocketDisconnect):
+                # log the failure once; the traceback string is built here so no frame <-> exception cycle is kept alive
+                logger.info("video ws %s/%s ended: %r", device_id[:8], profile, err)
+            err = None
     except WebSocketDisconnect:
         pass
     finally:
         for t in tasks:
             t.cancel()
+        # Await the cancelled tasks: un-awaited cancelled tasks keep coroutine frames + exceptions in reference
+        # cycles that only the cyclic GC can free (found by a 9-device churn soak: ~100 garbage objects per socket).
+        await asyncio.gather(*tasks, return_exceptions=True)
         sess.listeners.discard(on_state)
         stream_manager.detach(sess, viewer)

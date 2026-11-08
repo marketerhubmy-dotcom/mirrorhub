@@ -32,19 +32,15 @@ class SystemMonitor:
         self._last: tuple[int, int, int] | None = None   # idle, kernel, user
         self.available = sys.platform == "win32"
 
-    # ── windows primitives (replaceable in tests) ──
-    def _times(self) -> tuple[int, int, int] | None:
+    # ── windows primitives (replaceable in tests); ctypes types are created once, not per call ──
+    _W: dict = {}
+
+    @classmethod
+    def _win(cls) -> dict:
+        if cls._W:
+            return cls._W
         import ctypes
         from ctypes import wintypes
-
-        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        idle, kern, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
-        if not k32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kern), ctypes.byref(user)):
-            return None
-        return _ft(idle), _ft(kern), _ft(user)
-
-    def _memory(self) -> tuple[float, float] | None:
-        import ctypes
 
         class MSX(ctypes.Structure):
             _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
@@ -53,9 +49,27 @@ class SystemMonitor:
                         ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
                         ("sullAvailExtendedVirtual", ctypes.c_ulonglong)]
 
-        m = MSX()
-        m.dwLength = ctypes.sizeof(MSX)
-        if not ctypes.WinDLL("kernel32").GlobalMemoryStatusEx(ctypes.byref(m)):
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.GetSystemTimes.argtypes = [ctypes.POINTER(wintypes.FILETIME)] * 3
+        k32.GetSystemTimes.restype = wintypes.BOOL
+        k32.GlobalMemoryStatusEx.argtypes = [ctypes.POINTER(MSX)]
+        k32.GlobalMemoryStatusEx.restype = wintypes.BOOL
+        cls._W.update(ctypes=ctypes, wintypes=wintypes, MSX=MSX, k32=k32)
+        return cls._W
+
+    def _times(self) -> tuple[int, int, int] | None:
+        w = self._win()
+        ctypes, wintypes = w["ctypes"], w["wintypes"]
+        idle, kern, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
+        if not w["k32"].GetSystemTimes(ctypes.byref(idle), ctypes.byref(kern), ctypes.byref(user)):
+            return None
+        return _ft(idle), _ft(kern), _ft(user)
+
+    def _memory(self) -> tuple[float, float] | None:
+        w = self._win()
+        m = w["MSX"]()
+        m.dwLength = w["ctypes"].sizeof(w["MSX"])
+        if not w["k32"].GlobalMemoryStatusEx(w["ctypes"].byref(m)):
             return None
         total = m.ullTotalPhys / 1048576
         return total - m.ullAvailPhys / 1048576, total

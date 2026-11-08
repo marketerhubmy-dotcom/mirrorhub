@@ -105,6 +105,18 @@ async def mem(reset: bool = False):
     stats = snap.compare_to(_BASE["s"], "lineno")[:12]
     return [{"diff_kb": round(s.size_diff / 1024, 1), "count": s.count_diff, "where": str(s.traceback[0])} for s in stats]
 
+@app.get("/__gcdebug")
+async def gc_debug():
+    """What kind of cyclic garbage accumulates? (counts by type + module of the biggest groups)"""
+    import gc, collections
+    gc.set_debug(gc.DEBUG_SAVEALL)
+    gc.collect()
+    garbage = list(gc.garbage)
+    gc.set_debug(0)
+    c = collections.Counter(type(o).__module__ + "." + type(o).__qualname__ for o in garbage)
+    gc.garbage.clear()
+    return {"total": len(garbage), "top": c.most_common(14)}
+
 @app.get("/__gc")
 async def gc_now():
     import gc

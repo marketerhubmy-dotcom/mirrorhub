@@ -64,14 +64,15 @@ async def lifespan(app: FastAPI):
     logger.info("AI Agent manager started")
 
     async def _gc_loop() -> None:
-        # asyncio subprocess/websocket objects form reference cycles; Python's lazy gen-2 collection let RSS climb
-        # ~5 MB/min (sawtooth up to ~270 MB in a 25 min real soak). A cheap periodic full collection keeps it flat.
+        # Backstop only. The root causes of the earlier ~5 MB/min sawtooth were fixed at the source (ctypes classes created
+        # per sample, asyncio subprocess transports for every adb poll, un-awaited cancelled WS tasks). What remains is
+        # SQLAlchemy statement-compilation cycles from the legacy background loops, so a rare full collection is enough.
         import gc
         while True:
-            await asyncio.sleep(30)
+            await asyncio.sleep(300)
             gc.collect()
 
-    _gc_task = asyncio.create_task(_gc_loop())
+    _gc_task = asyncio.create_task(_gc_loop() if not __import__("os").environ.get("MIRRORHUB_NO_GC_LOOP") else asyncio.sleep(0))
 
     from app.services import perf, perf_events
     _perf = perf.get_collector()

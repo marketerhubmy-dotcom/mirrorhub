@@ -193,7 +193,7 @@ class PerfCollector:
         *,
         sessions: Callable[[], list],
         monitor_snapshot: Callable[[], dict],
-        count_devices: Callable[[], Awaitable[dict]] | None = None,
+        device_source: Callable[[], Awaitable[list[dict]]] | None = None,
         thresholds: Callable[[], dict] | None = None,
         interval: float = SAMPLE_INTERVAL_S,
         clock: Callable[[], float] = time.time,
@@ -201,7 +201,9 @@ class PerfCollector:
     ):
         self._sessions = sessions
         self._monitor = monitor_snapshot
-        self._count_devices = count_devices
+        self._device_source = device_source
+        self._rows: list[dict] = []
+        self._rows_at = 0.0
         self._thresholds = thresholds or (lambda: dict(THRESHOLD_DEFAULTS))
         self.interval = interval
         self._clock = clock
@@ -254,16 +256,29 @@ class PerfCollector:
                 logger.exception("perf tick failed")
             await asyncio.sleep(self.interval)
 
+    # ── device registry cache (keeps dashboard polling off the database) ──
+    DEVICE_CACHE_S = 5.0
+
+    async def refresh_devices(self, now: float | None = None, force: bool = False) -> list[dict]:
+        now = self._clock() if now is None else now
+        if self._device_source and (force or now - self._rows_at >= self.DEVICE_CACHE_S):
+            try:
+                self._rows = await self._device_source()
+                self._rows_at = now
+                self._db_counts = {"registered": len(self._rows), "online": sum(1 for r in self._rows if r["is_online"])}
+            except Exception:
+                logger.debug("device source failed", exc_info=True)
+        return self._rows
+
+    def invalidate_devices(self, *_a) -> None:
+        """A lifecycle event happened: the next read refreshes the registry rows."""
+        self._rows_at = 0.0
+
     # ── sampling ──
     async def tick(self) -> dict:
         now = self._clock()
         self._ticks += 1
-        if self._count_devices and now - self._db_counts_at >= 10:
-            self._db_counts_at = now
-            try:
-                self._db_counts = await self._count_devices()
-            except Exception:
-                pass
+        await self.refresh_devices(now)
 
         sysm = self._sys.sample()
         self._pc_static = {"ram_total_mb": sysm.ram_total_mb, "cpu_count": sysm.cpu_count}
@@ -590,16 +605,20 @@ def get_collector() -> PerfCollector:
             p = preferences.load()
             return {k: p[k] for k in THRESHOLD_DEFAULTS if k in p}
 
-        async def count_devices() -> dict:
-            from sqlalchemy import func, select
-
+        async def device_source() -> list[dict]:
+            from app.devices import registry
             from app.models.database import AsyncSessionLocal
-            from app.models.device import Device
             async with AsyncSessionLocal() as db:
-                total = (await db.execute(select(func.count()).select_from(Device))).scalar() or 0
-                online = (await db.execute(select(func.count()).select_from(Device).where(Device.is_online.is_(True)))).scalar() or 0
-            return {"registered": total, "online": online}
+                rows = await registry.get_all_devices(db)
+            out = []
+            for d in rows:
+                state = d.state if d.state and d.state != "absent" else ("online" if d.is_online else "offline")
+                out.append({"device_id": d.device_id, "name": d.device_name, "transport": d.transport or ("wifi" if d.wifi else "usb"),
+                            "state": state, "is_online": bool(d.is_online), "battery": d.battery,
+                            "storage_free_mb": d.storage_free_mb, "storage_total_mb": d.storage_total_mb, "last_error": d.last_error})
+            return out
 
         _collector = PerfCollector(sessions=stream_manager.sessions, monitor_snapshot=lambda: get_monitor().snapshot(),
-                                   count_devices=count_devices, thresholds=th)
+                                   device_source=device_source, thresholds=th)
+        perf_events.subscribe(lambda ev: _collector.invalidate_devices() if ev["kind"] in ("device", "adb") else None)
     return _collector

@@ -26,14 +26,25 @@ router = APIRouter(prefix="/perf", tags=["performance"])
 
 
 async def _device_dicts(db: AsyncSession) -> list[dict]:
-    rows = await registry.get_all_devices(db)
-    out = []
-    for d in rows:
-        state = d.state if d.state and d.state != "absent" else ("online" if d.is_online else "offline")
-        out.append({"device_id": d.device_id, "name": d.device_name, "transport": d.transport or ("wifi" if d.wifi else "usb"),
-                    "state": state, "is_online": bool(d.is_online), "battery": d.battery, "storage_free_mb": d.storage_free_mb,
-                    "storage_total_mb": d.storage_total_mb, "last_error": d.last_error})
-    return out
+    """Registry rows from the collector's 5 s cache (no DB hit per poll); falls back to a direct read if no source is wired."""
+    c = perf.get_collector()
+    rows = await c.refresh_devices()
+    if c._rows_at == 0.0 and not rows:                    # collector not running (tests / early startup)
+        rows = []
+        for d in await registry.get_all_devices(db):
+            state = d.state if d.state and d.state != "absent" else ("online" if d.is_online else "offline")
+            rows.append({"device_id": d.device_id, "name": d.device_name, "transport": d.transport or ("wifi" if d.wifi else "usb"),
+                         "state": state, "is_online": bool(d.is_online), "battery": d.battery, "storage_free_mb": d.storage_free_mb,
+                         "storage_total_mb": d.storage_total_mb, "last_error": d.last_error})
+    return rows
+
+
+@router.get("/snapshot")
+async def snapshot(db: AsyncSession = Depends(get_db)):
+    """Overview + per-device rows in ONE request (what the dashboard polls)."""
+    c = perf.get_collector()
+    rows = c.device_rows(await _device_dicts(db))
+    return {"overview": c.overview(rows), "devices": rows}
 
 
 @router.get("/overview")

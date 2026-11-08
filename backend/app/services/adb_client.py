@@ -102,59 +102,54 @@ def validate_pair_code(code: str) -> str:
 
 # ── runner ────────────────────────────────────────────────────────────────────
 
-async def run_adb(*args: str, serial: str | None = None, timeout: float = 15.0,
-                  input_bytes: bytes | None = None) -> AdbResult:
-    """Run ``adb [-s serial] args...``.  Raises AdbMissing / AdbError(timeout)."""
+CRLF, LF = chr(13) + chr(10), chr(10)
+
+
+def _build_cmd(args: tuple[str, ...], serial: str | None) -> list[str]:
     if not ADB.exists():
         raise AdbMissing(f"adb.exe tidak dijumpai di {ADB}. Pasang semula Mirrorhub.")
     cmd = [str(ADB)]
     if serial:
         cmd += ["-s", validate_serial(serial)]
-    cmd += list(args)
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdin=asyncio.subprocess.PIPE if input_bytes is not None else asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        creationflags=_NO_WINDOW,
+    return cmd + list(args)
+
+
+def _run_blocking(cmd: list[str], timeout: float, input_bytes: bytes | None) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        cmd, input=input_bytes, stdin=None if input_bytes is not None else subprocess.DEVNULL,
+        capture_output=True, timeout=timeout, creationflags=_NO_WINDOW,
     )
+
+
+async def run_adb(*args: str, serial: str | None = None, timeout: float = 15.0,
+                  input_bytes: bytes | None = None) -> AdbResult:
+    """
+    Run ``adb [-s serial] args...`` in a worker thread.  Raises AdbMissing / AdbError(timeout).
+
+    Deliberately NOT asyncio.create_subprocess_exec: the device monitor calls this every 2 s, and each asyncio
+    subprocess leaves pipe transports in reference cycles that only the cyclic GC frees (measured: steady idle
+    memory growth).  subprocess.run in a thread has no such cycles and kills the child on timeout.
+    """
+    cmd = _build_cmd(args, serial)
     try:
-        out, err = await asyncio.wait_for(proc.communicate(input_bytes), timeout=timeout)
-    except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
-        await proc.wait()
-        raise AdbError(f"adb tamat masa selepas {timeout:.0f}s ({' '.join(args[:3])}).")
+        cp = await asyncio.to_thread(_run_blocking, cmd, timeout, input_bytes)
+    except subprocess.TimeoutExpired:
+        raise AdbError(f"adb tamat masa selepas {timeout:.0f}s ({' '.join(args[:3])}).") from None
     return AdbResult(
-        rc=proc.returncode if proc.returncode is not None else -1,
-        out=out.decode("utf-8", "replace").replace("\r\n", "\n"),
-        err=err.decode("utf-8", "replace").replace("\r\n", "\n").strip(),
+        rc=cp.returncode,
+        out=cp.stdout.decode("utf-8", "replace").replace(CRLF, LF),
+        err=cp.stderr.decode("utf-8", "replace").replace(CRLF, LF).strip(),
     )
 
 
 async def run_adb_bytes(*args: str, serial: str | None = None, timeout: float = 30.0) -> tuple[int, bytes, str]:
     """Like run_adb but returns raw stdout bytes (screencap, exec-out)."""
-    if not ADB.exists():
-        raise AdbMissing(f"adb.exe tidak dijumpai di {ADB}.")
-    cmd = [str(ADB)]
-    if serial:
-        cmd += ["-s", validate_serial(serial)]
-    cmd += list(args)
-    proc = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, creationflags=_NO_WINDOW,
-    )
+    cmd = _build_cmd(args, serial)
     try:
-        out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
-        await proc.wait()
-        raise AdbError("adb tamat masa.")
-    return proc.returncode or 0, out, err.decode("utf-8", "replace").strip()
+        cp = await asyncio.to_thread(_run_blocking, cmd, timeout, None)
+    except subprocess.TimeoutExpired:
+        raise AdbError("adb tamat masa.") from None
+    return cp.returncode or 0, cp.stdout, cp.stderr.decode("utf-8", "replace").strip()
 
 
 # ── parsing ───────────────────────────────────────────────────────────────────

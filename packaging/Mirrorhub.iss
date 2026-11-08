@@ -1,6 +1,6 @@
 ; Inno Setup 6 script. Build with packaging\build.ps1 (needs build\pyi-dist\MirrorHub populated).
 #define AppName "Mirrorhub"
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 #define SrcDir "..\build\pyi-dist\MirrorHub"
 
 [Setup]

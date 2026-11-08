@@ -182,6 +182,7 @@ export interface PerfEvent { id: number; t: number; kind: string; level: string;
 export type PerfRange = '5m' | '15m' | '1h' | 'session'
 export const perfApi = {
   overview: () => request<PerfOverview>('/perf/overview'),
+  snapshot: () => request<{ overview: PerfOverview; devices: PerfDevice[] }>('/perf/snapshot'),
   history: (range: PerfRange) => request<{ range: string; interval_s: number; points: PerfPoint[] }>(`/perf/history?range=${range}`),
   devices: () => request<PerfDevice[]>('/perf/devices'),
   events: (limit = 100) => request<PerfEvent[]>(`/perf/events?limit=${limit}`),

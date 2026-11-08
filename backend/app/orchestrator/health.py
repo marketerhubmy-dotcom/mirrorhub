@@ -9,7 +9,8 @@ import subprocess
 import time
 from dataclasses import dataclass
 
-from app.utils.adb_path import ADB
+from app.services import adb_client
+from app.utils.adb_path import ADB  # noqa: F401  (kept for modules that patch it)
 
 
 @dataclass
@@ -57,14 +58,9 @@ async def check_device(device_id: str, adb_address: str) -> HealthSnapshot:
     # ── Latency ping ─────────────────────────────────────────────────────────
     t0 = time.monotonic()
     try:
-        proc = await asyncio.create_subprocess_exec(
-            str(ADB), "-s", adb_address, "shell", "echo", "ok",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
-        reachable = proc.returncode == 0 and b"ok" in stdout
+        # thread-based runner: asyncio subprocesses leave pipe-transport reference cycles (see adb_client.run_adb)
+        r = await adb_client.run_adb("shell", "echo", "ok", serial=adb_address, timeout=5.0)
+        reachable = r.rc == 0 and "ok" in r.out
     except (asyncio.TimeoutError, Exception):
         reachable = False
 
@@ -126,14 +122,8 @@ async def _adb_run(adb_address: str, shell_cmd: str) -> str:
     """Run a shell command, return stdout as string. Empty string on failure."""
     try:
         parts = ["shell"] + shell_cmd.split(None, 1)[1:] if shell_cmd.startswith("shell ") else shell_cmd.split()
-        proc = await asyncio.create_subprocess_exec(
-            str(ADB), "-s", adb_address, *parts,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
-        return stdout.decode(errors="ignore").strip()
+        r = await adb_client.run_adb(*parts, serial=adb_address, timeout=5.0)
+        return r.out.strip()
     except Exception:
         return ""
 

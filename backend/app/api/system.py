@@ -177,6 +177,18 @@ if _os.environ.get("MH_TRACE"):
     _tm.start(15)
     _base: dict = {}
 
+    @router.get("/_gcdebug")
+    async def _gcdebug():
+        """Composition of cyclic garbage waiting for the collector (dev only)."""
+        import collections
+        _gc.set_debug(_gc.DEBUG_SAVEALL)
+        _gc.collect()
+        g = list(_gc.garbage)
+        _gc.set_debug(0)
+        _gc.garbage.clear()
+        c = collections.Counter(type(o).__module__ + "." + type(o).__qualname__ for o in g)
+        return {"total": len(g), "top": c.most_common(14)}
+
     @router.get("/_mem")
     async def _mem(reset: bool = False, gc: bool = True):
         if gc:

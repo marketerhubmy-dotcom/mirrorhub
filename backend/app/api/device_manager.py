@@ -40,6 +40,15 @@ class DevicePatch(BaseModel):
     notes: str | None = Field(None, max_length=2000)
 
 
+def _perf_invalidate() -> None:
+    """Registry changed: make the dashboard's cached device rows refresh on the next poll."""
+    try:
+        from app.services import perf
+        perf.get_collector().invalidate_devices()
+    except Exception:
+        pass
+
+
 def serialize(d: Device) -> dict:
     try:
         tags = json.loads(d.tags or "[]")
@@ -74,6 +83,7 @@ async def patch_device(device_id: str, patch: DevicePatch, device: Device = Depe
         device.notes = patch.notes
     await db.commit()
     await db.refresh(device)
+    _perf_invalidate()
     return serialize(device)
 
 
@@ -87,6 +97,7 @@ async def forget_device(device_id: str, confirm: bool = Query(False), device: De
     await stream_manager.stop_device(device_id)
     await db.delete(device)
     await db.commit()
+    _perf_invalidate()
     return {"ok": True}
 
 

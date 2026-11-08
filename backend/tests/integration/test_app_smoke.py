@@ -239,6 +239,8 @@ def test_perf_device_table_for_registered_offline_device(client):
                 "VALUES ('pd1','Offline Phone',50,1,0,'1.2.3.4:5555',datetime('now'),datetime('now'),'offline','wifi')")
     con.commit()
     con.close()
+    from app.services import perf
+    perf.get_collector().invalidate_devices()          # direct SQL bypasses the API paths that invalidate the cache
     rows = client.get("/api/v1/perf/devices").json()
     r = next(x for x in rows if x["device_id"] == "pd1")
     assert r["health"] == "disconnected" and r["fps"] is None and "fps" in r["na"] and r["transport"] == "wifi"
@@ -272,3 +274,9 @@ def test_perf_diagnostics_export_has_no_secrets_and_valid_shapes(client, monkeyp
         assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv") and "LEAKCHECK" not in r.text
         assert f"mirrorhub_{kind}.csv" in r.headers["content-disposition"]
     assert client.get("/api/v1/perf/export.csv?kind=secrets").status_code == 422
+
+
+def test_perf_snapshot_single_request_matches_parts(client):
+    s = client.get("/api/v1/perf/snapshot").json()
+    assert set(s) == {"overview", "devices"} and s["overview"]["devices_total"] == len(s["devices"])
+    assert {d["device_id"] for d in s["devices"]} == {d["device_id"] for d in client.get("/api/v1/perf/devices").json()}

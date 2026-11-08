@@ -65,8 +65,8 @@ export default function PerformancePage() {
 
   const loadFast = useCallback(async () => {
     try {
-      const [o, d] = await Promise.all([perfApi.overview(), perfApi.devices()])
-      setOv(o); setDevs(d); setErr('')
+      const s = await perfApi.snapshot()            // one request for cards + device table
+      setOv(s.overview); setDevs(s.devices); setErr('')
     } catch (e) { setErr((e as Error).message) }
   }, [])
   const loadSlow = useCallback(async () => {
@@ -75,7 +75,7 @@ export default function PerformancePage() {
       setHist(h.points); setEvents(e)
     } catch { /* the fast poll already reports a backend outage */ }
   }, [range])
-  usePolling(loadFast, 2000)
+  usePolling(loadFast, 3000)
   usePolling(loadSlow, range === 'session' ? 10000 : 5000)
 
   const rows = (hist ?? []) as unknown as { t: number; [k: string]: number | null }[]

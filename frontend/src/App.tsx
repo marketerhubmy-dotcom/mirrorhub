@@ -7,6 +7,7 @@ import FilesPage from './pages/FilesPage'
 import SystemPage from './pages/SystemPage'
 import AdvancedPage from './pages/AdvancedPage'
 import AutomationCorePage from './pages/AutomationCorePage'
+import PerformancePage from './pages/PerformancePage'
 import DevicePage from './pages/DevicePage'
 import AutomationPage from './pages/AutomationPage'
 import ContentStudioPage from './pages/ContentStudioPage'
@@ -33,6 +34,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<DevicesPage />} />
         <Route path="/pairing" element={<PairingPage />} />
+        <Route path="/performance" element={<PerformancePage />} />
         <Route path="/apps" element={<AppsPage />} />
         <Route path="/files" element={<FilesPage />} />
         <Route path="/system" element={<SystemPage />} />

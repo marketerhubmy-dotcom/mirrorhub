@@ -55,6 +55,8 @@ export function useDeviceStream(
   const [error, setError] = useState('')
   const [stats, setStats] = useState<StreamStats>({ fps: 0, kbps: 0, width: 0, height: 0 })
   const statsRef = useRef({ frames: 0, bytes: 0 })
+  // cumulative decoder counters, reported to the Performance dashboard (received / decoded / dropped)
+  const totalsRef = useRef({ received: 0, decoded: 0, dropped: 0 })
 
   useEffect(() => {
     if (paused) {
@@ -90,6 +92,7 @@ export function useDeviceStream(
           ctx.drawImage(frame, 0, 0)
           frame.close()
           statsRef.current.frames++
+          totalsRef.current.decoded++
           setState((s) => (s === 'streaming' ? s : 'streaming'))
         },
         error: (e) => {
@@ -98,6 +101,7 @@ export function useDeviceStream(
           haveKey = false
           needConfigure = true
           decoder = null
+          totalsRef.current.dropped++
         },
       })
     }
@@ -106,6 +110,7 @@ export function useDeviceStream(
     // Keyframe pictures always carry SPS+PPS (guaranteed by the server hub).
     const handleAu = (au: Uint8Array) => {
       statsRef.current.bytes += au.length
+      totalsRef.current.received++
       let isKey = false
       let hasVcl = false
       for (const [start, type] of nalOffsets(au)) {
@@ -135,8 +140,8 @@ export function useDeviceStream(
         haveKey = true
         dec.decode(new EncodedVideoChunk({ type: 'key', timestamp: (tsUs += 33_333), data: au }))
       } else {
-        if (!haveKey || dec.state !== 'configured') return
-        if (dec.decodeQueueSize > MAX_DECODE_QUEUE) { haveKey = false; return }  // too far behind: resync at next IDR
+        if (!haveKey || dec.state !== 'configured') { totalsRef.current.dropped++; return }
+        if (dec.decodeQueueSize > MAX_DECODE_QUEUE) { haveKey = false; totalsRef.current.dropped++; return }  // too far behind: resync at next IDR
         dec.decode(new EncodedVideoChunk({ type: 'delta', timestamp: (tsUs += 33_333), data: au }))
       }
     }
@@ -175,10 +180,19 @@ export function useDeviceStream(
     }
     connect()
 
+    let tick = 0
+    totalsRef.current = { received: 0, decoded: 0, dropped: 0 }
     const statsTimer = window.setInterval(() => {
       const { frames, bytes } = statsRef.current
       statsRef.current = { frames: 0, bytes: 0 }
       setStats({ fps: frames, kbps: Math.round((bytes * 8) / 1000), width: canvas.width, height: canvas.height })
+      // every 5 s tell the backend what this tile's decoder really did (visible hidden tabs report nothing)
+      if (++tick % 5 === 0 && !document.hidden && totalsRef.current.received > 0) {
+        fetch('/api/v1/perf/client-stats', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+          body: JSON.stringify({ device_id: deviceId, profile, ...totalsRef.current, fps: frames, width: canvas.width, height: canvas.height }),
+        }).catch(() => { /* telemetry is best-effort */ })
+      }
     }, 1000)
 
     return () => {

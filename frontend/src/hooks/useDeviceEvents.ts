@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 export interface DeviceEvent {
-  type: 'snapshot' | 'device' | 'changed' | 'adb'
+  type: 'snapshot' | 'device' | 'changed' | 'adb' | 'alert'
   action?: string
   serial?: string
   state?: string

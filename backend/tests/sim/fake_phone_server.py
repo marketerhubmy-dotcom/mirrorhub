@@ -23,6 +23,11 @@ DEVICES = {
     "dev-B": types.SimpleNamespace(device_id="dev-B", device_name="Fake Phone B", adb_address="10.0.0.2:5555",
                                    battery=55, wifi=True, is_online=True, state="online", last_seen="now"),
 }
+import os as _os
+for _i in range(int(_os.environ.get("MH_DEVICES", "2")) - 2):     # MH_DEVICES=9 -> a 9-phone wall
+    DEVICES[f"dev-{_i + 3}"] = types.SimpleNamespace(device_id=f"dev-{_i + 3}", device_name=f"Fake Phone {_i + 3}",
+                                                     adb_address=f"10.0.0.{_i + 3}:5555", battery=70, wifi=True, is_online=True,
+                                                     state="online", last_seen="now")
 LOG: list[dict] = []
 
 # ── fake adb layer: record what would be typed into each device's shell ──
@@ -50,7 +55,7 @@ class FakeSession(ss.StreamSession):
             self._t = asyncio.get_running_loop().create_task(self._feed())
     async def _feed(self):
         self._set("starting"); await asyncio.sleep(0.3); self._set("streaming")
-        i = 0 if self.device_id == "dev-A" else len(AUS) // 2
+        i = (hash(self.device_id) % len(AUS))
         while True:
             self.hub.push(AUS[i % len(AUS)])
             await asyncio.sleep(1 / 15)

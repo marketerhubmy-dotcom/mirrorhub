@@ -7,6 +7,7 @@ const NAV = [
   { to: '/', label: 'Peranti', icon: '📱', end: true },
   { to: '/device-wall', label: 'Device Wall', icon: '🖥️' },
   { to: '/pairing', label: 'Pairing Center', icon: '🔗' },
+  { to: '/performance', label: 'Prestasi', icon: '📈' },
   { to: '/apps', label: 'Aplikasi & APK', icon: '📦' },
   { to: '/files', label: 'Fail', icon: '📁' },
   { to: '/automation', label: 'Automasi', icon: '⚡' },
@@ -25,6 +26,10 @@ function EventToaster() {
       toast('info', `Peranti terputus (${e.serial})`)
     } else if (e.type === 'device' && e.action === 'reconnect_failed') {
       toast('error', `Tidak dapat sambung semula ${e.serial}. Port Wireless Debugging mungkin berubah.`)
+    } else if (e.type === 'alert' && e.action === 'triggered') {
+      toast('warn', String(e.message ?? 'Amaran prestasi'))
+    } else if (e.type === 'alert' && e.action === 'cleared') {
+      toast('ok', String(e.message ?? 'Amaran pulih'))
     } else if (e.type === 'adb' && e.ok === false) {
       toast('error', `ADB bermasalah: ${e.message}`)
     } else if (e.type === 'adb' && e.ok === true) {

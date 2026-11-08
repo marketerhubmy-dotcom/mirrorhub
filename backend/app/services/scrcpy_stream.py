@@ -648,10 +648,14 @@ class StreamManager:
             await asyncio.sleep(self.IDLE_GRACE)
         except asyncio.CancelledError:
             return
-        if not sess.hub.viewers:
-            await sess.stop()
-            if self._sessions.get(key) is sess:
-                del self._sessions[key]
+        try:
+            if not sess.hub.viewers:
+                await sess.stop()
+                if self._sessions.get(key) is sess:
+                    del self._sessions[key]
+        finally:
+            if self._reapers.get(key) is asyncio.current_task():   # finished reapers must not accumulate
+                self._reapers.pop(key, None)
 
     async def stop_device(self, device_id: str) -> None:
         """Stop every profile session for one device (forgotten / unplugged)."""

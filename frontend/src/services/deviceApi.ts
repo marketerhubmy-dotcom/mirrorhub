@@ -143,6 +143,57 @@ export const autoApi = {
   cancel: (id: string) => post<{ ok: boolean }>(`/auto/runs/${id}/cancel`),
 }
 
+// ── performance dashboard ─────────────────────────────────────────────────────
+export type Health = 'healthy' | 'degraded' | 'reconnecting' | 'disconnected' | 'authorization_required'
+export interface PerfAlert { key: string; scope: string; title: string; severity: 'warning' | 'critical'; active: boolean; since: number; value: unknown; message: string }
+export interface PerfOverview {
+  generated_at: number; collector_uptime_s: number
+  devices: { connected: number; unauthorized: number; disconnected: number; reconnecting: number }
+  devices_total: number; active_streams: number
+  pc: { cpu_pct: number | null; ram_pct: number | null; ram_used_mb: number | null; ram_total_mb: number | null; cpu_count: number | null }
+  process: { cpu_pct: number | null; rss_mb: number | null; threads: number | null; handles: number | null; note: string }
+  fps_avg: number | null; fps_note: string | null
+  ws: Record<string, number>; ws_total: number
+  reconnects: { '5m': number; '15m': number; '1h': number }
+  health: { status: 'healthy' | 'degraded'; reason: string; critical_alerts: number }
+  alerts: PerfAlert[]
+  thresholds: Record<string, number | boolean>
+}
+export interface PerfPoint {
+  t: number; sys_cpu: number | null; sys_ram_pct: number | null; sys_ram_used_mb: number | null; proc_cpu: number | null
+  proc_rss_mb: number | null; proc_threads: number | null; proc_handles: number | null; streams: number | null
+  fps_avg: number | null; reconnects: number | null; ws: number | null; devices_connected: number | null
+}
+export interface PerfStream {
+  profile: string; state: string; viewers: number; frames: number; bytes: number; dropped_server: number
+  fps: number | null; fps_avg: number | null; bitrate_kbps: number | null; width: number | null; height: number | null
+  startup_s: number | null; reconnects: number; last_error: string | null; uptime_s: number | null; activity: string
+}
+export interface PerfDevice {
+  device_id: string; name: string; transport: string | null; state: string; online: boolean; health: Health; health_reason: string
+  fps: number | null; fps_avg: number | null; resolution: string | null; bitrate_kbps: number | null
+  activity: 'active' | 'idle' | 'none' | 'unknown'; frames_sent: number; frames_dropped_server: number
+  client: { profile: string; received: number; decoded: number; dropped: number; fps: number | null; age_s: number } | null
+  startup_s: number | null; reconnects: number; reconnects_recent: number; last_error: string | null; uptime_s: number | null
+  battery: number | null; storage_free_mb: number | null; storage_total_mb: number | null
+  streams: PerfStream[]; na: Record<string, string>
+}
+export interface PerfEvent { id: number; t: number; kind: string; level: string; device_id: string | null; message: string }
+export type PerfRange = '5m' | '15m' | '1h' | 'session'
+export const perfApi = {
+  overview: () => request<PerfOverview>('/perf/overview'),
+  history: (range: PerfRange) => request<{ range: string; interval_s: number; points: PerfPoint[] }>(`/perf/history?range=${range}`),
+  devices: () => request<PerfDevice[]>('/perf/devices'),
+  events: (limit = 100) => request<PerfEvent[]>(`/perf/events?limit=${limit}`),
+  alerts: () => request<{ active: PerfAlert[]; history: { t: number; message: string; event: string; severity: string }[] }>('/perf/alerts'),
+  thresholds: () => request<Record<string, number | boolean> & { defaults: Record<string, number | boolean> }>('/perf/thresholds'),
+  putThresholds: (patch: Record<string, number | boolean>) =>
+    request<Record<string, number | boolean>>('/perf/thresholds', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }),
+  reportJson: () => request<Record<string, unknown>>('/perf/diagnostics'),
+  reportText: async () => (await fetch(`${BASE}/perf/diagnostics.txt`)).text(),
+  csvUrl: (kind: 'history' | 'devices' | 'events', range = '1h') => `${BASE}/perf/export.csv?kind=${kind}&range=${range}`,
+}
+
 export function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

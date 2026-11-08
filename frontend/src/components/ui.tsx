@@ -31,8 +31,8 @@ export function Spinner({ className = 'w-4 h-4' }: { className?: string }) {
 }
 
 // ── Card / Section ────────────────────────────────────────────────────────────
-export function Card({ className = '', children }: { className?: string; children: ReactNode }) {
-  return <div className={`rounded-2xl border border-ink-700 bg-ink-850 ${className}`}>{children}</div>
+export function Card({ className = '', children, role }: { className?: string; children: ReactNode; role?: string }) {
+  return <div role={role} className={`rounded-2xl border border-ink-700 bg-ink-850 ${className}`}>{children}</div>
 }
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {

@@ -32,7 +32,8 @@ SAMPLE_INTERVAL_S = 2.0
 FINE_MAX = 1800          # 1 h @ 2 s
 COARSE_BUCKET_S = 30.0
 COARSE_MAX = 2880        # 24 h @ 30 s
-IDLE_BYTES_PER_S = 2048  # below this a stream is "idle" (static screen), not "slow"
+IDLE_BYTES_PER_S = 15360  # recent (~6 s) byte rate below this = "idle" (static screen / clock tick), not "slow"
+WARMUP_S = 10.0           # the first seconds after the first frame carry the initial keyframe burst; never judged
 RANGES = {"5m": 300, "15m": 900, "1h": 3600}
 
 # ── thresholds (persisted through preferences; documented in docs/PERFORMANCE_DASHBOARD.md) ──
@@ -173,8 +174,10 @@ def classify_health(*, device_state: str, online: bool, stream: dict | None, now
     # streaming
     if recent_reconnects >= th["perf_reconnect_loop_count"]:
         return "degraded", f"{recent_reconnects} sambungan semula dalam {th['perf_reconnect_window_s']} s (gelung reconnect)."
-    if stream["activity"] == "active" and stream["fps_avg"] is not None and stream["fps_avg"] < th["perf_fps_low"]:
-        return "degraded", f"FPS rendah ({stream['fps_avg']}) semasa skrin aktif."
+    # judged on the last ~6 s and only after sustained activity: a brief notification blip is not a slow stream
+    if (stream["activity"] == "active" and stream.get("active_streak", 0) >= 3 and stream.get("fps_recent") is not None
+            and stream["fps_recent"] < th["perf_fps_low"]):
+        return "degraded", f"FPS rendah ({stream['fps_recent']}) semasa skrin aktif."
     if stream["startup_s"] is not None and stream["startup_s"] > th["perf_startup_slow_s"]:
         return "degraded", f"Strim lambat bermula ({stream['startup_s']} s)."
     if stream["activity"] == "idle":
@@ -213,6 +216,8 @@ class PerfCollector:
         self._prev_counters: dict[tuple[str, str], tuple[float, int, int, int]] = {}   # key -> (t, frames, bytes, reconnects)
         self._rates: dict[tuple[str, str], dict] = {}
         self._fps_hist: dict[tuple[str, str], deque] = {}
+        self._streak: dict[tuple[str, str], int] = {}            # consecutive ticks of real activity
+        self._bytes_hist: dict[tuple[str, str], deque] = {}      # last 3 per-interval byte rates (~6 s)
         self._state_since: dict[tuple[str, str], tuple[str, float]] = {}
         self._reconnect_ts: dict[str, deque] = {}        # device_id -> timestamps of reconnects
         self._reconnect_total = 0
@@ -272,6 +277,7 @@ class PerfCollector:
         disconnected = max(0, registered - connected - unauth) if registered else 0
 
         sess_list = list(self._sessions())
+        now_mono = time.monotonic()
         fps_vals: list[float] = []
         active = 0
         reconnect_delta = 0
@@ -299,17 +305,21 @@ class PerfCollector:
             if fps is not None:
                 h = self._fps_hist.setdefault(key, deque(maxlen=15))     # rolling ~30 s
                 h.append((fps, brate or 0.0))
+                bh = self._bytes_hist.setdefault(key, deque(maxlen=3))
+                bh.append(brate or 0.0)
                 self._rates[key] = {"fps": fps, "bitrate_kbps": round((brate or 0) * 8 / 1000, 1),
                                     "fps_avg": round(statistics.fmean(x[0] for x in h), 2),
-                                    "bytes_per_s": statistics.fmean(x[1] for x in h)}
+                                    "bytes_per_s": statistics.fmean(x[1] for x in h),
+                                    "recent_bytes_per_s": statistics.fmean(bh),
+                                    "fps_recent": round(statistics.fmean(x[0] for x in list(h)[-3:]), 2)}
+                self._streak[key] = self._streak.get(key, 0) + 1 if statistics.fmean(bh) >= IDLE_BYTES_PER_S else 0
             if s.state == "streaming":
                 active += 1
-                r = self._rates.get(key)
-                if r and r["bytes_per_s"] >= IDLE_BYTES_PER_S:
-                    fps_vals.append(r["fps_avg"])
+                if self._activity(s, now_mono) == "active":
+                    fps_vals.append(self._rates[key]["fps_avg"])
         # forget counters of sessions that no longer exist
         live = {(s.device_id, s.profile) for s in sess_list}
-        for d in (self._prev_counters, self._rates, self._fps_hist, self._state_since, self._last_reconnect_seen):
+        for d in (self._prev_counters, self._rates, self._fps_hist, self._bytes_hist, self._streak, self._state_since, self._last_reconnect_seen):
             for k in [k for k in d if k not in live]:
                 d.pop(k, None)
 
@@ -428,17 +438,28 @@ class PerfCollector:
                                         "dropped": int(dropped), "fps": fps, "width": width, "height": height}
 
     # ── per-device table / overview ──
+    def _activity(self, s, now_mono: float) -> str:
+        """active | idle | warmup | unknown | none — judged on the last ~6 s of traffic, never on the stream start burst."""
+        if s.state != "streaming":
+            return "none"
+        key = (s.device_id, s.profile)
+        r = self._rates.get(key)
+        if r is None:
+            return "unknown"
+        if s.hub.first_frame_at and now_mono - s.hub.first_frame_at < WARMUP_S:
+            return "warmup"
+        return "active" if r["recent_bytes_per_s"] >= IDLE_BYTES_PER_S else "idle"
+
     def stream_view(self, s) -> dict:
         key = (s.device_id, s.profile)
         r = self._rates.get(key)
         now = self._clock()
-        activity = "none"
-        if s.state == "streaming":
-            activity = "active" if (r and r["bytes_per_s"] >= IDLE_BYTES_PER_S) else "idle" if r else "unknown"
+        activity = self._activity(s, time.monotonic())
         return {
             "profile": s.profile, "state": s.state, "state_since": self._state_since.get(key, (s.state, now))[1],
             "viewers": len(s.hub.viewers), "frames": s.hub.frames, "bytes": s.hub.bytes, "dropped_server": s.hub.dropped,
             "fps": r["fps"] if r else None, "fps_avg": r["fps_avg"] if r else None,
+            "fps_recent": r["fps_recent"] if r else None, "active_streak": self._streak.get(key, 0),
             "bitrate_kbps": r["bitrate_kbps"] if r else None,
             "width": s.hub.width or None, "height": s.hub.height or None,
             "startup_s": s.startup_seconds(), "reconnects": s.reconnects,

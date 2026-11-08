@@ -186,7 +186,8 @@ TH = perf.THRESHOLD_DEFAULTS
 
 
 def stream(**kw):
-    base = {"state": "streaming", "state_since": 0, "activity": "active", "fps_avg": 24.0, "startup_s": 1.2, "last_error": None}
+    base = {"state": "streaming", "state_since": 0, "activity": "active", "fps_avg": 24.0, "fps_recent": 24.0, "active_streak": 10,
+            "startup_s": 1.2, "last_error": None}
     base.update(kw)
     return base
 
@@ -197,7 +198,9 @@ def stream(**kw):
     (dict(device_state="offline", online=False, stream=None), "disconnected"),
     (dict(device_state="online", online=True, stream=None), "healthy"),
     (dict(device_state="online", online=True, stream=stream()), "healthy"),
-    (dict(device_state="online", online=True, stream=stream(fps_avg=2.0)), "degraded"),                 # active but slow
+    (dict(device_state="online", online=True, stream=stream(fps_recent=2.0)), "degraded"),                 # active but slow
+    (dict(device_state="online", online=True, stream=stream(fps_recent=2.0, active_streak=1)), "healthy"),   # brief blip, not sustained
+    (dict(device_state="online", online=True, stream=stream(fps_avg=1.0, fps_recent=20.0)), "healthy"),      # old average must not condemn a recovered stream
     (dict(device_state="online", online=True, stream=stream(activity="idle", fps_avg=0.0)), "healthy"),   # idle != broken
     (dict(device_state="online", online=True, stream=stream(state="reconnecting")), "reconnecting"),
     (dict(device_state="online", online=True, stream=stream(state="failed", last_error="boom")), "degraded"),
@@ -491,3 +494,44 @@ def test_csv_exports_have_headers_and_blanks_for_na():
     assert d.splitlines()[0].startswith("device_id,name") and "a,n," in d
     e = perf_report.events_csv([{"time": "t", "kind": "k", "level": "info", "device_id": None, "message": "m, with comma"}])
     assert '"m, with comma"' in e
+
+
+@pytest.mark.asyncio
+async def test_start_up_keyframe_burst_is_never_judged_as_slow_activity(monkeypatch):
+    """Real-hardware finding: the initial GOP burst made an idle phone look 'active but 0.4 fps' (false degraded)."""
+    import time as _t
+    s = FakeSess()
+    c, clk = make_collector([s])
+    await c.tick()
+    s.hub.first_frame_at = _t.monotonic()            # stream just started
+    await advance(c, clk, 1, sessions=[s], frames=40, nbytes=300_000)       # keyframe burst
+    await advance(c, clk, 3, sessions=[s], frames=1, nbytes=1_000)          # then a static screen
+    row = c.device_rows([{"device_id": "d1", "name": "P", "transport": "wifi", "state": "online", "is_online": True}])[0]
+    assert row["activity"] == "warmup" and row["health"] == "healthy"
+    s.hub.first_frame_at = _t.monotonic() - 60                              # past warm-up, still static
+    await advance(c, clk, 4, sessions=[s], frames=0, nbytes=0)
+    row = c.device_rows([{"device_id": "d1", "name": "P", "transport": "wifi", "state": "online", "is_online": True}])[0]
+    assert row["activity"] == "idle" and row["health"] == "healthy"
+    assert c.last_sample["fps_avg"] is None
+
+
+@pytest.mark.asyncio
+async def test_tiny_periodic_updates_are_idle_not_slow():
+    s = FakeSess()
+    c, clk = make_collector([s])
+    await c.tick()
+    await advance(c, clk, 30, sessions=[s], frames=2, nbytes=4_000)         # ~1 fps, 2 KB/s: clock tick / cursor blink
+    row = c.device_rows([{"device_id": "d1", "name": "P", "transport": "wifi", "state": "online", "is_online": True}])[0]
+    assert row["activity"] == "idle" and row["health"] == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_brief_activity_blip_after_idle_is_not_degraded():
+    """Real-hardware finding: a short notification animation on an idle phone flipped it to 'degraded' for one sample."""
+    s = FakeSess()
+    c, clk = make_collector([s])
+    await c.tick()
+    await advance(c, clk, 20, sessions=[s], frames=0, nbytes=0)             # idle
+    await advance(c, clk, 1, sessions=[s], frames=11, nbytes=80_000)        # 5 fps blip, 40 KB/s
+    row = c.device_rows([{"device_id": "d1", "name": "P", "transport": "wifi", "state": "online", "is_online": True}])[0]
+    assert row["health"] == "healthy"

@@ -19,7 +19,9 @@ import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
-_STORE_FILE = Path(__file__).parent / "products.json"
+from app.core import runtime_paths
+
+_STORE_FILE = runtime_paths.data_dir() / "products.json"
 
 
 @dataclass

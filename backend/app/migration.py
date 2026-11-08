@@ -22,11 +22,29 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Resolved once at import time — same root as database.py
-_BACKEND_ROOT = Path(__file__).parent.parent
-DB_PATH = _BACKEND_ROOT / "mirrorhub.db"
+from app.core import runtime_paths
+
+DB_PATH = runtime_paths.db_path()
 
 # table_name -> list of (column_name, column_definition)
 REQUIRED_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    "devices": [
+        ("hw_serial",        "VARCHAR(64)"),
+        ("model",            "VARCHAR(64) DEFAULT ''"),
+        ("manufacturer",     "VARCHAR(64) DEFAULT ''"),
+        ("android_version",  "VARCHAR(16) DEFAULT ''"),
+        ("sdk",              "INTEGER DEFAULT 0"),
+        ("transport",        "VARCHAR(16) DEFAULT ''"),
+        ("state",            "VARCHAR(24) DEFAULT 'absent'"),
+        ("storage_total_mb", "INTEGER DEFAULT 0"),
+        ("storage_free_mb",  "INTEGER DEFAULT 0"),
+        ("screen_w",         "INTEGER DEFAULT 0"),
+        ("screen_h",         "INTEGER DEFAULT 0"),
+        ("tags",             "TEXT DEFAULT '[]'"),
+        ("group_name",       "VARCHAR(64) DEFAULT ''"),
+        ("notes",            "TEXT DEFAULT ''"),
+        ("last_error",       "TEXT DEFAULT ''"),
+    ],
     "content_jobs": [
         ("tiktok_product_name",      "TEXT DEFAULT ''"),
         ("publish_mode",             "VARCHAR(16) DEFAULT 'manual'"),
@@ -93,7 +111,7 @@ async def safe_migrate_db() -> None:
 
     # ── Back up before touching the file ────────────────────────────────────
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = DB_PATH.parent / f"mirrorhub_backup_{ts}.db"
+    backup_path = runtime_paths.backups_dir() / f"mirrorhub_{ts}_pre-schema-change.db"
     shutil.copy2(str(DB_PATH), str(backup_path))
     logger.info("📦 DB backup before migration: %s", backup_path)
 

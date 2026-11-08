@@ -15,7 +15,13 @@ from pathlib import Path
 
 # Navigate from this file to the project root:
 #   adb_path.py → utils/ → app/ → backend/ → project root
-_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+from app.core import runtime_paths
 
-ADB: Path = _PROJECT_ROOT / "tools" / "scrcpy" / "scrcpy-win64-v4.0" / "adb.exe"
-SCRCPY: Path = _PROJECT_ROOT / "tools" / "scrcpy" / "scrcpy-win64-v4.0" / "scrcpy.exe"
+# Dev: repo root (4 parents up). Frozen: folder next to MirrorHub.exe.
+# The traversal below is kept in runtime_paths.install_root():
+#   parent.parent.parent.parent
+_PROJECT_ROOT = runtime_paths.install_root()
+_TOOLS = runtime_paths.tools_root() / "scrcpy" / "scrcpy-win64-v4.0"
+
+ADB: Path = _TOOLS / "adb.exe"
+SCRCPY: Path = _TOOLS / "scrcpy.exe"

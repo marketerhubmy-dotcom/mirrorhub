@@ -1,4 +1,7 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core import runtime_paths
 
 
 class Settings(BaseSettings):
@@ -7,7 +10,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"  # loopback only; see app/core/security.py
     allow_remote_bind: bool = False  # env ALLOW_REMOTE_BIND=true — exposes unauthenticated phone control to the LAN
     port: int = 8000
-    database_url: str = "sqlite+aiosqlite:///./mirrorhub.db"
+    database_url: str = ""  # empty → %APPDATA%\Mirrorhub\mirrorhub.db (ADR-005)
 
     # ── Security ──────────────────────────────────────────────────────────────
     # Comma-separated list of allowed CORS origins.
@@ -35,7 +38,17 @@ class Settings(BaseSettings):
     # ── Logging ───────────────────────────────────────────────────────────────
     log_level: str = "INFO"
 
-    model_config = SettingsConfigDict(env_file=".env")
+    # Later files override earlier ones: legacy ./.env (dev checkouts) < AppData .env
+    model_config = SettingsConfigDict(
+        env_file=(".env", str(runtime_paths.env_file())),
+        extra="ignore",
+    )
+
+    @model_validator(mode="after")
+    def _default_database_url(self):
+        if not self.database_url:
+            self.database_url = runtime_paths.sqlite_url()
+        return self
 
 
 settings = Settings()

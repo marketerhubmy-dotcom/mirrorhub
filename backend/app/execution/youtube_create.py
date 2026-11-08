@@ -14,17 +14,14 @@ import re
 import subprocess
 from pathlib import Path
 
+from app.utils.adb_path import ADB
+
 from .state_machine import StepResult
-
-
-def _adb() -> Path:
-    base = Path(__file__).parent.parent.parent.parent
-    return base / "tools" / "scrcpy" / "scrcpy-win64-v4.0" / "adb.exe"
 
 
 async def _run(adb_address: str, *args: str) -> str:
     proc = await asyncio.create_subprocess_exec(
-        str(_adb()), "-s", adb_address, *args,
+        str(ADB), "-s", adb_address, *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW,
@@ -195,7 +192,7 @@ async def _push_image(adb_address: str, step: dict) -> StepResult:
     await _run(adb_address, "shell", "rm", "-f", f"{device_dir}/mh_job*.jpg")
 
     proc = await asyncio.create_subprocess_exec(
-        str(_adb()), "-s", adb_address,
+        str(ADB), "-s", adb_address,
         "push", local_path, device_path,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE,
@@ -643,7 +640,7 @@ async def _push_image_file(adb_address: str, step: dict) -> StepResult:
     if cleanup_pattern:
         await _run(adb_address, "shell", "rm", "-f", f"{device_dir}/{cleanup_pattern}")
     proc = await asyncio.create_subprocess_exec(
-        str(_adb()), "-s", adb_address,
+        str(ADB), "-s", adb_address,
         "push", step["local"], device_path,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,

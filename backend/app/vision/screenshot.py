@@ -8,7 +8,9 @@ from pathlib import Path
 from app.core.config import settings
 from app.utils.adb_path import ADB
 
-SCREENSHOT_DIR = Path(__file__).parent.parent.parent / "uploads" / "vision"
+from app.utils.paths import UPLOAD_DIR
+
+SCREENSHOT_DIR = UPLOAD_DIR / "vision"
 
 
 def _png_dimensions(data: bytes) -> tuple[int, int]:

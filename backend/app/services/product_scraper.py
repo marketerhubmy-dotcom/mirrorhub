@@ -6,7 +6,7 @@ from urllib.parse import urlparse, urlunparse, parse_qs
 import httpx
 from bs4 import BeautifulSoup
 
-UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
+from app.utils.paths import UPLOAD_DIR
 
 # Only these domains are permitted — no arbitrary URL execution
 ALLOWED_DOMAINS = {

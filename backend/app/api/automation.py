@@ -10,7 +10,7 @@ from app.services import ai_generator, automation_runner, product_scraper
 
 router = APIRouter(prefix="/automation", tags=["automation"])
 
-UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
+from app.utils.paths import UPLOAD_DIR
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 

@@ -38,7 +38,7 @@ from app.core.config import settings
 
 router = APIRouter(prefix="/products", tags=["products"])
 
-UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
+from app.utils.paths import UPLOAD_DIR
 ALLOWED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_IMAGES = 5
 MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MB per file

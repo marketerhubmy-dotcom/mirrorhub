@@ -1,5 +1,6 @@
 """Database CRUD helpers for the Campaign module."""
 import json
+from sqlalchemy import delete as sa_delete
 from datetime import datetime, timezone
 
 from sqlalchemy import select, func
@@ -50,6 +51,8 @@ async def delete_campaign(db: AsyncSession, campaign_id: int) -> bool:
     c = await db.get(Campaign, campaign_id)
     if not c:
         return False
+    # explicit: legacy tables created before the FK existed would otherwise keep orphans
+    await db.execute(sa_delete(CampaignJob).where(CampaignJob.campaign_id == campaign_id))
     await db.delete(c)
     await db.commit()
     return True

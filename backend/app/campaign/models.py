@@ -1,9 +1,10 @@
 import json
 from datetime import datetime, timezone
-from sqlalchemy import Text, Integer, Float, Index
+from sqlalchemy import Text, Integer, Float, Index, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.database import Base
+from app.models.types import UTCDateTime
 
 # Priority labels used by CampaignJob.to_dict()
 _PRIORITY_LABELS: dict[int, str] = {0: "CRITICAL", 1: "HIGH", 2: "NORMAL", 3: "LOW"}
@@ -31,8 +32,8 @@ class Campaign(Base):
     total_jobs: Mapped[int] = mapped_column(Integer, default=0)
     completed_jobs: Mapped[int] = mapped_column(Integer, default=0)
     failed_jobs: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
         return {
@@ -64,7 +65,8 @@ class CampaignJob(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    campaign_id: Mapped[int] = mapped_column(Integer)
+    # FK enforced for new databases; legacy tables created before this lack it (create_all never alters)
+    campaign_id: Mapped[int] = mapped_column(Integer, ForeignKey("campaigns.id", ondelete="CASCADE"))
     content_job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     platform: Mapped[str] = mapped_column(Text, default="tiktok")
     device_id: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -80,8 +82,8 @@ class CampaignJob(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
         return {

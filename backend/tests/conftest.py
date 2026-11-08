@@ -10,6 +10,12 @@ Key decisions
 * OpenAI client is monkey-patched at session scope so tests never make real calls
 """
 import asyncio
+import os
+import tempfile
+
+# ADR-005: tests must never touch the real %APPDATA%\Mirrorhub. Set before app imports.
+os.environ.setdefault("MIRRORHUB_DATA_DIR", tempfile.mkdtemp(prefix="mirrorhub-test-"))
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import event

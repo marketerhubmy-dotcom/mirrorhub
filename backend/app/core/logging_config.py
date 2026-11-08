@@ -15,7 +15,9 @@ import logging.handlers
 import sys
 from pathlib import Path
 
-LOG_DIR = Path(__file__).parent.parent.parent / "logs"
+from app.core import runtime_paths
+
+LOG_DIR = runtime_paths.logs_dir()
 LOG_FILE = LOG_DIR / "mirrorhub.log"
 
 LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"

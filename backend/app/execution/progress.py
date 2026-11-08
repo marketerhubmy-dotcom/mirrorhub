@@ -9,7 +9,9 @@ from app.websocket.manager import manager
 from .state_machine import ExecutionState
 
 # Screenshots land inside the existing uploads/ mount so they're web-accessible
-SCREENSHOT_DIR = Path(__file__).parent.parent.parent / "uploads" / "screenshots"
+from app.utils.paths import UPLOAD_DIR
+
+SCREENSHOT_DIR = UPLOAD_DIR / "screenshots"
 
 
 async def broadcast_state(state: ExecutionState) -> None:

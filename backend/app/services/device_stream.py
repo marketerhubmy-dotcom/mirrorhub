@@ -2,17 +2,14 @@ import asyncio
 import io
 import subprocess
 from pathlib import Path
+
+from app.utils.adb_path import ADB
 from typing import Callable, Awaitable
 
 from PIL import Image
 
 _streaming: dict[str, asyncio.Task] = {}
 _capture_events: dict[str, asyncio.Event] = {}
-
-
-def _get_adb() -> Path:
-    base = Path(__file__).parent.parent.parent.parent
-    return base / "tools" / "scrcpy" / "scrcpy-win64-v4.0" / "adb.exe"
 
 
 async def _capture_frame(adb: Path, adb_address: str) -> bytes | None:
@@ -42,7 +39,7 @@ async def _loop(
     adb_address: str,
     broadcast: Callable[[str, bytes], Awaitable[None]],
 ) -> None:
-    adb = _get_adb()
+    adb = ADB
     event = asyncio.Event()
     _capture_events[device_id] = event
 

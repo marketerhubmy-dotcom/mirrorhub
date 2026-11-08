@@ -3,12 +3,9 @@ import re
 import subprocess
 from pathlib import Path
 
+from app.utils.adb_path import ADB
+
 _runners: dict[str, "AutomationRunner"] = {}
-
-
-def _adb() -> Path:
-    base = Path(__file__).parent.parent.parent.parent
-    return base / "tools" / "scrcpy" / "scrcpy-win64-v4.0" / "adb.exe"
 
 
 class AutomationRunner:
@@ -24,7 +21,7 @@ class AutomationRunner:
 
     async def _adb_run(self, *args: str) -> str:
         proc = await asyncio.create_subprocess_exec(
-            str(_adb()), "-s", self.adb_address, *args,
+            str(ADB), "-s", self.adb_address, *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW,
@@ -124,7 +121,7 @@ class AutomationRunner:
 
         elif t == "push_file":
             proc = await asyncio.create_subprocess_exec(
-                str(_adb()), "-s", self.adb_address,
+                str(ADB), "-s", self.adb_address,
                 "push", step["local"], step["remote"],
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,

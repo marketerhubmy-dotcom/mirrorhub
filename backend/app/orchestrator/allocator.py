@@ -35,6 +35,7 @@ async def assign_device(
     plugin_filter: str | None = None,
     active_jobs: dict[str, int] | None = None,
     manual_device_id: str | None = None,
+    exclude_device_id: str | None = None,
 ) -> str | None:
     """
     Pick a device for `job` and stamp `job.device_id` + create an assignment record.
@@ -43,6 +44,8 @@ async def assign_device(
     Does NOT commit — caller must commit after.
     """
     profiles = await list_available_profiles(db, plugin=plugin_filter, group_id=group_id)
+    if exclude_device_id:  # failover: never hand the job back to the device it just left
+        profiles = [p for p in profiles if p.device_id != exclude_device_id]
     if not profiles:
         logger.debug("assign_device: no available profiles for job %d", job.id)
         return None

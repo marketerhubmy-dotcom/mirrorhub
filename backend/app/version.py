@@ -31,7 +31,8 @@ MODULE_VERSIONS: dict[str, str] = {
 
 def get_build_info() -> dict:
     """Return a dict suitable for the /about API response."""
-    db_path = Path(__file__).parent.parent / "mirrorhub.db"
+    from app.core.runtime_paths import db_path as _db_path
+    db_path = _db_path()
     return {
         "version": VERSION,
         "release_name": RELEASE_NAME,

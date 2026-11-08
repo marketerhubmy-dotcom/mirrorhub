@@ -17,17 +17,14 @@ from pathlib import Path
 
 from .state_machine import StepResult
 
+from app.utils.adb_path import ADB
+
 logger = logging.getLogger(__name__)
-
-
-def _adb() -> Path:
-    base = Path(__file__).parent.parent.parent.parent
-    return base / "tools" / "scrcpy" / "scrcpy-win64-v4.0" / "adb.exe"
 
 
 async def _run(adb_address: str, *args: str) -> str:
     proc = await asyncio.create_subprocess_exec(
-        str(_adb()), "-s", adb_address, *args,
+        str(ADB), "-s", adb_address, *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW,
@@ -206,7 +203,7 @@ async def _push_video(adb_address: str, step: dict) -> StepResult:
     await _run(adb_address, "shell", "mkdir", "-p", device_dir)
 
     proc = await asyncio.create_subprocess_exec(
-        str(_adb()), "-s", adb_address,
+        str(ADB), "-s", adb_address,
         "push", local, device_path,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,

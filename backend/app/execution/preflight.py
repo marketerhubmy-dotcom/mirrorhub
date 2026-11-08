@@ -33,7 +33,7 @@ class PreflightResult:
     warnings: list[str] = field(default_factory=list)
 
 
-async def _adb(adb_address: str, *args: str) -> str:
+async def _run_adb(adb_address: str, *args: str) -> str:
     proc = await asyncio.create_subprocess_exec(
         str(ADB), "-s", adb_address, *args,
         stdout=asyncio.subprocess.PIPE,
@@ -72,13 +72,13 @@ async def check_screen_on(adb_address: str) -> bool:
     Return True when the device screen is interactive (on and unlocked enough
     for automation). Uses `dumpsys power` display-state detection.
     """
-    out = await _adb(adb_address, "shell", "dumpsys", "power")
+    out = await _run_adb(adb_address, "shell", "dumpsys", "power")
     # Both "Display Power: state=ON" and "mWakefulness=Awake" indicate a live screen.
     return "state=ON" in out or "mWakefulness=Awake" in out
 
 
 async def check_app_installed(adb_address: str, package: str) -> bool:
-    out = await _adb(adb_address, "shell", "pm", "list", "packages", package)
+    out = await _run_adb(adb_address, "shell", "pm", "list", "packages", package)
     return f"package:{package}" in out
 
 

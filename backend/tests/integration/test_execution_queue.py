@@ -1,115 +1,80 @@
 """
-Integration tests for the execution queue.
+Execution queue (campaign repository) — rewritten against the current API.
 
-Verifies:
-  1. Jobs can be enqueued and dequeued in FIFO order.
-  2. Dequeuing an empty queue returns None without blocking.
-  3. A job claimed by one consumer cannot be claimed by another.
-  4. Completed jobs are removed from the active queue.
-  5. Database state matches in-memory expectations after queue operations.
+The original file called `get_pending_jobs`, which no longer exists. The queue is
+now `ExecutionQueue` rows managed by `enqueue / list_active_queue /
+update_queue_entry_status`.
 """
-from datetime import datetime, timezone
-
 import pytest
 
+from app.campaign import repository as repo
+from app.campaign.models import Campaign, CampaignJob
 
-def _now():
-    return datetime.now(timezone.utc)
 
-
-@pytest.mark.asyncio
-async def test_enqueue_and_dequeue_fifo_order(db_session):
-    """Jobs must be dequeued in the order they were enqueued (by created_at)."""
-    from app.campaign.models import Campaign, CampaignJob
-    from app.campaign import repository as repo
-
-    campaign = Campaign(
-        name="queue-test", status="ACTIVE",
-        created_at=_now(), updated_at=_now(),
-    )
-    db_session.add(campaign)
-    await db_session.flush()
-
-    # Enqueue 3 jobs in order
-    for i in range(3):
-        job = CampaignJob(
-            campaign_id=campaign.id,
-            status="PENDING",
-            platform="tiktok",
-        )
-        db_session.add(job)
-    await db_session.flush()
-
-    # Fetch pending jobs in order
-    jobs = await repo.get_pending_jobs(db_session, limit=10)
-    assert len(jobs) >= 3
-
-    # Verify they're ordered by id (proxy for FIFO)
-    ids = [j.id for j in jobs[:3]]
-    assert ids == sorted(ids), "Jobs were not returned in FIFO order"
+async def _job(db):
+    c = Campaign(name="q")
+    db.add(c)
+    await db.flush()
+    j = CampaignJob(campaign_id=c.id, platform="tiktok")
+    db.add(j)
+    await db.flush()
+    return j
 
 
 @pytest.mark.asyncio
-async def test_dequeue_empty_returns_empty(db_session):
-    """get_pending_jobs on an empty queue must return [] without blocking."""
-    from app.campaign import repository as repo
-
-    jobs = await repo.get_pending_jobs(db_session, limit=10)
-    # May return empty or a list; must not raise
-    assert isinstance(jobs, list)
-
-
-@pytest.mark.asyncio
-async def test_claimed_job_not_returned_again(db_session):
-    """A job marked as RUNNING must not appear in subsequent get_pending_jobs calls."""
-    from app.campaign.models import Campaign, CampaignJob
-    from app.campaign import repository as repo
-
-    campaign = Campaign(
-        name="claim-test", status="ACTIVE",
-        created_at=_now(), updated_at=_now(),
-    )
-    db_session.add(campaign)
-    await db_session.flush()
-
-    job = CampaignJob(campaign_id=campaign.id, status="PENDING", platform="tiktok")
-    db_session.add(job)
-    await db_session.flush()
-    job_id = job.id
-
-    # Mark as RUNNING
-    job.status = "RUNNING"
-    job.device_id = "some-device"
-    await db_session.flush()
-
-    # Should not appear in pending jobs
-    pending = await repo.get_pending_jobs(db_session, limit=10)
-    assert job_id not in [j.id for j in pending], (
-        "RUNNING job appeared in get_pending_jobs — it would be double-dispatched"
-    )
+async def test_queue_is_ordered_by_queue_order_then_id(db_session):
+    a, b, c = [await _job(db_session) for _ in range(3)]
+    await repo.enqueue(db_session, a.id, queue_order=2)
+    await repo.enqueue(db_session, b.id, queue_order=1)
+    await repo.enqueue(db_session, c.id, queue_order=1)
+    q = await repo.list_queue(db_session)
+    assert [e.campaign_job_id for e in q] == [b.id, c.id, a.id]
 
 
 @pytest.mark.asyncio
-async def test_completed_job_not_in_pending(db_session):
-    """A COMPLETED job must not be returned by get_pending_jobs."""
-    from app.campaign.models import Campaign, CampaignJob
-    from app.campaign import repository as repo
+async def test_empty_queue_returns_empty_list(db_session):
+    assert await repo.list_queue(db_session) == []
+    assert await repo.list_active_queue(db_session) == []
 
-    campaign = Campaign(
-        name="completed-queue-test", status="DONE",
-        created_at=_now(), updated_at=_now(),
-    )
-    db_session.add(campaign)
-    await db_session.flush()
 
-    job = CampaignJob(
-        campaign_id=campaign.id, status="COMPLETED",
-        platform="tiktok",
-        updated_at=_now(),
-    )
-    db_session.add(job)
-    await db_session.flush()
-    job_id = job.id
+@pytest.mark.asyncio
+async def test_running_entry_stays_active_and_gets_started_at(db_session):
+    j = await _job(db_session)
+    e = await repo.enqueue(db_session, j.id)
+    e = await repo.update_queue_entry_status(db_session, e.id, "RUNNING")
+    assert e.started_at is not None
+    assert [x.id for x in await repo.list_active_queue(db_session)] == [e.id]
 
-    pending = await repo.get_pending_jobs(db_session, limit=100)
-    assert job_id not in [j.id for j in pending]
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("final", ["COMPLETED", "FAILED", "CANCELLED"])
+async def test_finished_entries_leave_active_queue(db_session, final):
+    j = await _job(db_session)
+    e = await repo.enqueue(db_session, j.id)
+    e = await repo.update_queue_entry_status(db_session, e.id, final)
+    assert e.finished_at is not None
+    assert await repo.list_active_queue(db_session) == []
+    assert len(await repo.list_queue(db_session)) == 1  # history kept
+
+
+@pytest.mark.asyncio
+async def test_update_unknown_entry_returns_none(db_session):
+    assert await repo.update_queue_entry_status(db_session, 424242, "RUNNING") is None
+
+
+@pytest.mark.asyncio
+async def test_lookup_by_job_returns_latest_entry(db_session):
+    j = await _job(db_session)
+    await repo.enqueue(db_session, j.id)
+    second = await repo.enqueue(db_session, j.id)
+    assert (await repo.get_queue_entry_by_job(db_session, j.id)).id == second.id
+
+
+@pytest.mark.asyncio
+async def test_deleting_campaign_removes_its_jobs(db_session):
+    j = await _job(db_session)
+    cid = j.campaign_id
+    await db_session.commit()
+    assert await repo.delete_campaign(db_session, cid) is True
+    assert await repo.get_campaign_job(db_session, j.id) is None
+    assert await repo.delete_campaign(db_session, cid) is False

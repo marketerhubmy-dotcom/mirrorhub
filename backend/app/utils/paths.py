@@ -10,7 +10,6 @@ Usage:
 from pathlib import Path
 
 # backend/ directory (contains uploads/, logs/, mirrorhub.db)
-_BACKEND_ROOT = Path(__file__).parent.parent.parent
+from app.core import runtime_paths
 
-UPLOAD_DIR: Path = _BACKEND_ROOT / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR: Path = runtime_paths.uploads_dir()

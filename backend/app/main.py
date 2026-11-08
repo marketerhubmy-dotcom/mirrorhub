@@ -26,7 +26,9 @@ from app.websocket.campaign_stream import campaign_view_endpoint
 from app.websocket.orchestrator_stream import orchestrator_view_endpoint
 from app.websocket.agent_stream import agent_view_endpoint
 
-FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
+from app.core import runtime_paths, data_migration
+
+FRONTEND_DIST = runtime_paths.frontend_dist()
 
 
 @asynccontextmanager
@@ -44,6 +46,8 @@ async def lifespan(app: FastAPI):
             "AI features (content generation, vision) will be unavailable"
         )
 
+    startup_report = data_migration.startup()
+    logger.info("Data dir: %s (%s)", runtime_paths.data_dir(), startup_report.get("migration", {}).get("status"))
     await safe_migrate_db()
     await safe_create_indexes()
     await init_db()
@@ -164,8 +168,7 @@ async def health():
 
 # ── Serve built React frontend (App Mode) ─────────────────────────────────────
 # Only mount if dist/ exists — dev mode uses Vite instead
-UPLOADS_DIR = Path(__file__).parent.parent / "uploads"
-UPLOADS_DIR.mkdir(exist_ok=True)
+UPLOADS_DIR = runtime_paths.uploads_dir()
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 if FRONTEND_DIST.exists():

@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/quicklaunch", tags=["quicklaunch"])
 
-UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
+from app.utils.paths import UPLOAD_DIR
 
 
 class ScrapeResponse(BaseModel):

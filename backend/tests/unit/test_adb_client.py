@@ -140,3 +140,23 @@ async def test_run_adb_real_subprocess_and_timeout(monkeypatch):
     assert r.rc == 0 and r.out.strip() == "hi"
     with pytest.raises(AdbError, match="tamat masa"):
         await ac.run_adb("-c", "import time; time.sleep(5)", timeout=0.3)
+
+
+NL, TAB = chr(10), chr(9)
+MD = ("List of discovered mdns services" + NL
+      + "adb-HW1-abc" + TAB + "_adb-tls-connect._tcp" + TAB + "192.168.0.238:39927" + NL
+      + "adb-HW2-def" + TAB + "_adb-tls-pairing._tcp" + TAB + "192.168.0.50:40000" + NL)
+
+
+@pytest.mark.asyncio
+async def test_resolve_wifi_target(monkeypatch):
+    async def fake(*a, **k):
+        return AdbResult(0, MD)
+
+    monkeypatch.setattr(ac, "run_adb", fake)
+    assert ac.is_mdns_serial("adb-HW1-abc._adb-tls-connect._tcp") and not ac.is_mdns_serial("1.2.3.4:5")
+    assert await ac.resolve_wifi_target("adb-HW1-abc._adb-tls-connect._tcp") == "192.168.0.238:39927"
+    assert await ac.resolve_wifi_target("adb-NOPE-x._adb-tls-connect._tcp") is None
+    assert await ac.resolve_wifi_target("1.2.3.4:5555", hw_serial="HW1") == "192.168.0.238:39927"   # port rotated
+    assert await ac.resolve_wifi_target("1.2.3.4:5555", hw_serial="HW9") == "1.2.3.4:5555"          # unchanged fallback
+    assert await ac.resolve_wifi_target("USB123") is None                                           # USB is not reconnectable

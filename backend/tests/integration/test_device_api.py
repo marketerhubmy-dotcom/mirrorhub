@@ -38,7 +38,10 @@ async def env(db_engine, monkeypatch, tmp_path):
     async def _no_devices():
         return []
 
-    mon = DeviceMonitor(session_factory=sf, lister=_no_devices, info_fetcher=None or (lambda s: None))
+    async def _same(serial, hw):
+        return serial
+
+    mon = DeviceMonitor(session_factory=sf, lister=_no_devices, info_fetcher=None or (lambda s: None), resolver=_same)
     monkeypatch.setattr("app.devices.lifecycle._monitor", mon)
 
     async with sf() as s:

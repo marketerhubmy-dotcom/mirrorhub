@@ -4,7 +4,7 @@
  Uses a throw-away MIRRORHUB_DATA_DIR; real %APPDATA%\Mirrorhub is never touched.
  Exit code 0 = all checks passed.
 #>
-param([string]$Setup)
+param([string]$Setup, [switch]$IsolatedProfile)
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $Setup) { $Setup = (Get-ChildItem (Join-Path $root 'dist\Mirrorhub-Setup-*.exe') | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName }
@@ -16,6 +16,18 @@ $inst = Join-Path $work 'Mirrorhub app'          # path with a space on purpose
 $data = Join-Path $work 'userdata'
 New-Item -ItemType Directory -Force $work, $data | Out-Null
 $env:MIRRORHUB_DATA_DIR = $data
+if ($IsolatedProfile) {
+  # Approximate a first-run user: empty profile folders, no Python/Node on PATH, no MIRRORHUB_* overrides except the data dir.
+  # (Not a clean OS: registry and machine-wide runtimes are the real ones.)
+  $prof = Join-Path $work 'profile'
+  New-Item -ItemType Directory -Force "$prof\AppData\Roaming", "$prof\AppData\Local\Temp" | Out-Null
+  $env:USERPROFILE = $prof; $env:APPDATA = "$prof\AppData\Roaming"; $env:LOCALAPPDATA = "$prof\AppData\Local"
+  $env:TEMP = "$prof\AppData\Local\Temp"; $env:TMP = $env:TEMP
+  $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+  Remove-Item Env:MIRRORHUB_DATA_DIR
+  $data = "$prof\AppData\Roaming\Mirrorhub"
+  Check 'isolated profile active (no python/node on PATH)' (-not (Get-Command python -ErrorAction SilentlyContinue) -and -not (Get-Command node -ErrorAction SilentlyContinue))
+}
 # sentinel to prove uninstall does not delete user data
 Set-Content (Join-Path $data 'sentinel.txt') 'keep me'
 

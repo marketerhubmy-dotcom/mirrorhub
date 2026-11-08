@@ -145,7 +145,13 @@ async def uninstall(serial: str, pkg: str, keep_data: bool = False) -> tuple[boo
     args = ["shell", "pm", "uninstall"] + (["-k"] if keep_data else []) + [pkg]
     r = await run_adb(*args, serial=serial, timeout=60)
     ok = "success" in r.out.lower()
-    return ok, "Dinyahpasang." if ok else (r.text or "Nyahpasang gagal (aplikasi sistem tidak boleh dinyahpasang).")
+    if ok:
+        return True, "Dinyahpasang."
+    if "DELETE_FAILED_INTERNAL_ERROR" in r.text:
+        return False, "Gagal: aplikasi mungkin tidak dipasang, atau dilindungi (aplikasi sistem)."
+    if "DELETE_FAILED_DEVICE_POLICY_MANAGER" in r.text:
+        return False, "Gagal: aplikasi dilindungi oleh dasar peranti (device owner / pentadbir)."
+    return False, r.text or "Nyahpasang gagal."
 
 
 async def launch(serial: str, pkg: str) -> tuple[bool, str]:

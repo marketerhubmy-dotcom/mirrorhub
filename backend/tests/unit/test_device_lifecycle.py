@@ -30,6 +30,7 @@ class Script:
         self.connects: list[str] = []
         self.connect_ok = False
         self.input = ("ok", "")
+        self.mdns = {}        # mdns serial -> current ip:port (None = not advertised)
 
     async def lister(self):
         if self.fail:
@@ -40,6 +41,11 @@ class Script:
         return DeviceInfo(model="Pixel 7", manufacturer="Google", android_version="14", sdk=34,
                           hw_serial=self.hw.get(serial, serial), battery=77, screen_w=1080, screen_h=2400,
                           storage_total_mb=1000, storage_free_mb=400)
+
+    async def resolve(self, serial, hw):
+        if serial in self.mdns:
+            return self.mdns[serial]
+        return serial
 
     async def probe(self, serial):
         return self.input
@@ -53,7 +59,7 @@ class Script:
 def world(db_engine):
     sf = async_sessionmaker(db_engine, expire_on_commit=False)
     s = Script()
-    m = DeviceMonitor(session_factory=sf, lister=s.lister, info_fetcher=s.info, connector=s.connect,
+    m = DeviceMonitor(session_factory=sf, lister=s.lister, info_fetcher=s.info, connector=s.connect, resolver=s.resolve,
                       poll_interval=0.01, backoff=(0.01, 0.01, 0.01), info_retries=3, info_retry_delay=0,
                       input_prober=s.probe)
     return m, s, sf
@@ -318,3 +324,46 @@ async def test_blocked_input_is_recorded_on_the_device_row(world):
     s.devices = [dev("USB123")]
     await m.tick(); await settle(m)
     assert (await rows(sf))[0].input_state == "ok"
+
+
+MDNS = "adb-HW1-abc._adb-tls-connect._tcp"
+
+
+@pytest.mark.asyncio
+async def test_mdns_named_wifi_device_reconnects_to_its_current_address(world):
+    """Real-hardware finding 2026-11-08: mDNS-serial devices were never reconnected (only ip:port ones)."""
+    m, s, sf = world
+    s.hw = {MDNS: "HW1"}
+    s.devices = [dev(MDNS)]
+    await m.tick(); await settle(m)
+    s.mdns[MDNS] = "192.168.0.238:39927"
+    s.connect_ok = True
+    s.devices = []
+    await m.tick(); await settle(m)
+    await asyncio.wait_for(asyncio.gather(*list(m._reconnect.values())), 2)
+    assert s.connects == ["192.168.0.238:39927"]           # connected to the resolved address, not the mDNS name
+
+
+@pytest.mark.asyncio
+async def test_unresolvable_mdns_device_gives_up_with_explanation(world):
+    m, s, sf = world
+    s.hw = {MDNS: "HW1"}
+    s.devices = [dev(MDNS)]
+    await m.tick(); await settle(m)
+    s.mdns[MDNS] = None
+    s.devices = []
+    await m.tick(); await settle(m)
+    await asyncio.wait_for(asyncio.gather(*list(m._reconnect.values())), 2)
+    assert s.connects == []
+    assert (await rows(sf))[0].state == "offline"
+
+
+@pytest.mark.asyncio
+async def test_reconnect_now_resolves_and_reports(world):
+    m, s, sf = world
+    s.mdns[MDNS] = None
+    ok, msg = await m.reconnect_now(MDNS)
+    assert ok is False and "mDNS" in msg
+    s.mdns[MDNS] = "10.0.0.5:4444"
+    s.connect_ok = True
+    assert (await m.reconnect_now(MDNS))[0] is True and s.connects == ["10.0.0.5:4444"]

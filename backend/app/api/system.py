@@ -142,3 +142,11 @@ async def stage_restore(name: str):
     except data_migration.DataError as exc:
         raise HTTPException(400, str(exc))
     return {"ok": True, "staged": info, "message": "Tutup dan buka semula Mirrorhub untuk melengkapkan pemulihan."}
+
+
+@router.get("/metrics")
+async def metrics():
+    """Backend process metrics + live stream sessions (used by the soak tool; no secrets)."""
+    from app.services.metrics import process_metrics
+    from app.services.scrcpy_stream import stream_manager
+    return {"process": process_metrics(), "streams": stream_manager.stats()}

@@ -57,6 +57,7 @@ class DeviceMonitor:
         lister: Callable[[], Awaitable[list[AdbDevice]]] | None = None,
         info_fetcher: Callable[[str], Awaitable[DeviceInfo]] | None = None,
         connector: Callable[[str], Awaitable[tuple[bool, str]]] | None = None,
+        resolver: Callable[[str, str | None], Awaitable[str | None]] | None = None,
         poll_interval: float = 2.0,
         backoff: tuple[float, ...] = RECONNECT_BACKOFF_S,
         input_prober: Callable[[str], Awaitable[tuple[str, str]]] | None = None,
@@ -73,6 +74,7 @@ class DeviceMonitor:
         self._list = lister or adb_client.list_devices
         self._info = info_fetcher
         self._connect = connector or adb_client.connect
+        self._resolve = resolver or adb_client.resolve_wifi_target
         self.poll_interval = poll_interval
         self.backoff = backoff
         self.info_retries = info_retries
@@ -361,7 +363,7 @@ class DeviceMonitor:
     # ── wireless auto-reconnect ───────────────────────────────────────────────
 
     def _start_reconnect(self, serial: str) -> None:
-        if serial in self._reconnect or not adb_client.IP_PORT_RE.match(serial):
+        if serial in self._reconnect or not adb_client.is_wifi_reconnectable(serial):
             return
         self._reconnect[serial] = asyncio.create_task(self._reconnect_loop(serial))
 
@@ -375,7 +377,11 @@ class DeviceMonitor:
                            of=len(self.backoff), state="reconnecting")
                 await self._mark_state(serial, "reconnecting")
                 try:
-                    ok, msg = await self._connect(serial)
+                    target = await self._resolve(serial, self.hw_of.get(serial))
+                    if target is None:
+                        ok, msg = False, "telefon tidak kelihatan melalui mDNS (Wireless debugging OFF / rangkaian berbeza)"
+                    else:
+                        ok, msg = await self._connect(target)
                 except AdbError as exc:
                     ok, msg = False, str(exc)
                 if ok:
@@ -408,8 +414,10 @@ class DeviceMonitor:
 
     async def reconnect_now(self, serial: str) -> tuple[bool, str]:
         self._suppress.discard(serial)
-        ok, msg = await self._connect(serial)
-        return ok, msg
+        target = await self._resolve(serial, self.hw_of.get(serial))
+        if target is None:
+            return False, "Telefon tidak kelihatan melalui mDNS. Hidupkan Wireless debugging dan pastikan rangkaian sama."
+        return await self._connect(target)
 
 
 def tags_to_list(raw: str | None) -> list[str]:

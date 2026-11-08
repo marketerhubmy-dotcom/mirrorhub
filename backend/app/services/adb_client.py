@@ -228,6 +228,41 @@ def interpret_connect(result: AdbResult) -> tuple[bool, str]:
     return False, text or "Sambungan gagal."
 
 
+def is_mdns_serial(serial: str) -> bool:
+    return serial.startswith("adb-") and "._adb-tls-connect." in serial
+
+
+def is_wifi_reconnectable(serial: str) -> bool:
+    return bool(IP_PORT_RE.match(serial)) or is_mdns_serial(serial)
+
+
+async def resolve_wifi_target(serial: str, hw_serial: str | None = None) -> str | None:
+    """
+    Current ``ip:port`` to ``adb connect`` for a WiFi device, or None.
+
+    * mDNS-named serial  -> look the service up by name (the port is NOT in the serial);
+    * ip:port serial     -> use the mDNS entry for the same hardware serial if present (Wireless debugging rotates
+                            its port on every toggle), else the old ip:port.
+    """
+    if not is_wifi_reconnectable(serial):
+        return None
+    try:
+        services = [s for s in await mdns_services() if s.kind == "connect"]
+    except AdbError:
+        services = []
+    if is_mdns_serial(serial):
+        name = serial.split("._adb-tls-connect.")[0]
+        for s in services:
+            if s.name == name:
+                return s.address
+        return None
+    if hw_serial:
+        for s in services:
+            if s.name.startswith(f"adb-{hw_serial}-"):
+                return s.address
+    return serial
+
+
 # ── high-level operations ─────────────────────────────────────────────────────
 
 async def start_server() -> AdbResult:

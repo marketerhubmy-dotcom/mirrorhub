@@ -112,7 +112,7 @@ async def refresh_device(device: Device = Depends(get_online_device), db: AsyncS
 
 @router.post("/devices/{device_id}/reconnect")
 async def reconnect_device(device: Device = Depends(get_device_or_404)):
-    if not device.adb_address or not adb_client.IP_PORT_RE.match(device.adb_address):
+    if not device.adb_address or not adb_client.is_wifi_reconnectable(device.adb_address):
         raise HTTPException(400, "Sambung semula automatik hanya untuk peranti WiFi. Untuk USB, cabut dan pasang semula kabel.")
     with adb_errors():
         ok, msg = await get_monitor().reconnect_now(device.adb_address)
@@ -123,7 +123,7 @@ async def reconnect_device(device: Device = Depends(get_device_or_404)):
 
 @router.post("/devices/{device_id}/disconnect")
 async def disconnect_device(device: Device = Depends(get_device_or_404)):
-    if not device.adb_address or not adb_client.IP_PORT_RE.match(device.adb_address):
+    if not device.adb_address or not adb_client.IP_PORT_RE.match(device.adb_address):  # mDNS routes are managed by adb itself
         raise HTTPException(400, "Hanya peranti WiFi boleh diputuskan dari sini.")
     get_monitor().suppress_reconnect(device.adb_address)
     with adb_errors():

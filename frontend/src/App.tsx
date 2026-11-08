@@ -1,5 +1,11 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import Dashboard from './pages/Dashboard'
+import AppShell from './components/AppShell'
+import DevicesPage from './pages/DevicesPage'
+import PairingPage from './pages/PairingPage'
+import AppsPage from './pages/AppsPage'
+import FilesPage from './pages/FilesPage'
+import SystemPage from './pages/SystemPage'
+import AdvancedPage from './pages/AdvancedPage'
 import DevicePage from './pages/DevicePage'
 import AutomationPage from './pages/AutomationPage'
 import ContentStudioPage from './pages/ContentStudioPage'
@@ -22,8 +28,14 @@ import QuickLaunchPage from './pages/QuickLaunchPage'
 export default function App() {
   return (
     <BrowserRouter>
+      <AppShell>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<DevicesPage />} />
+        <Route path="/pairing" element={<PairingPage />} />
+        <Route path="/apps" element={<AppsPage />} />
+        <Route path="/files" element={<FilesPage />} />
+        <Route path="/system" element={<SystemPage />} />
+        <Route path="/advanced" element={<AdvancedPage />} />
         <Route path="/device/:deviceId" element={<DevicePage />} />
         <Route path="/automation" element={<AutomationPage />} />
         <Route path="/content" element={<ContentStudioPage />} />
@@ -43,6 +55,7 @@ export default function App() {
         <Route path="/pipeline" element={<PipelinePage />} />
         <Route path="/quicklaunch" element={<QuickLaunchPage />} />
       </Routes>
+      </AppShell>
     </BrowserRouter>
   )
 }

@@ -44,7 +44,7 @@ function DeviceView({ deviceId }: { deviceId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-full bg-ink-900 text-white">
       <header className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/')} className="text-gray-400 hover:text-white text-sm">← Kembali</button>

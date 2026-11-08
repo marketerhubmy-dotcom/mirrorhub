@@ -25,12 +25,13 @@ export default function DeviceWallPage() {
   const [pausedAll, setPausedAll] = useState(false)
   const [pausedIds, setPausedIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
+  const [showOffline, setShowOffline] = useState(false)
 
   const wallDevices = useMemo(
     () => devices
-      .filter((d) => d.adb_address)
+      .filter((d) => d.adb_address && (showOffline || d.is_online))
       .filter((d) => d.device_name.toLowerCase().includes(query.toLowerCase())),
-    [devices, query],
+    [devices, query, showOffline],
   )
 
   const focused = focusId ? wallDevices.find((d) => d.device_id === focusId) ?? null : null
@@ -49,9 +50,8 @@ export default function DeviceWallPage() {
   const isPaused = (id: string) => pausedAll || pausedIds.has(id)
 
   return (
-    <div className="h-screen flex flex-col bg-gray-900 text-white">
+    <div className="h-full flex flex-col bg-ink-900 text-white">
       <header className="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-gray-800">
-        <Link to="/" className="text-gray-400 hover:text-white text-sm">← Dashboard</Link>
         <h1 className="font-semibold">Device Wall</h1>
         <span className="text-xs text-gray-400">{wallDevices.length} peranti</span>
 
@@ -70,6 +70,9 @@ export default function DeviceWallPage() {
               </button>
             ))}
           </div>
+          <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
+            <input type="checkbox" checked={showOffline} onChange={(e) => setShowOffline(e.target.checked)} /> Termasuk offline
+          </label>
           <button
             onClick={() => setPausedAll((p) => !p)}
             className="px-3 py-1.5 rounded-lg text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700"
@@ -91,8 +94,8 @@ export default function DeviceWallPage() {
         ) : wallDevices.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 text-center text-gray-400">
             <p>{devices.length === 0 ? 'Tiada peranti didaftarkan.' : 'Tiada peranti sepadan dengan carian.'}</p>
-            <Link to="/" className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-500">
-              Sambung peranti di Dashboard
+            <Link to="/pairing" className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-500">
+              Sambung peranti di Pairing Center
             </Link>
           </div>
         ) : focused ? (

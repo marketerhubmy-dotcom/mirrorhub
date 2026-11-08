@@ -3,6 +3,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from app.services import adb_control
+from app.services.device_ops import validate_package
 from app.utils.adb_path import ADB
 
 _runners: dict[str, "AutomationRunner"] = {}
@@ -68,23 +70,17 @@ class AutomationRunner:
         return False
 
     async def _type_text(self, text: str) -> None:
-        """Type text line by line into focused field."""
-        safe = (
-            text.replace("\\", "")
-                .replace('"', "'")
-                .replace("`", "'")
-                .replace("$", "")
-                .replace("(", "")
-                .replace(")", "")
-                .replace("&", "dan")
-                .replace("<", "")
-                .replace(">", "")
-        )
-        for line in safe.split("\n"):
-            if line.strip():
-                adb_text = line.replace(" ", "%s").replace("'", "\\'")
-                await self._adb_run("shell", "input", "text", adb_text)
-            await self._adb_run("shell", "input", "keyevent", "KEYCODE_ENTER")
+        """Type text line by line into the focused field.
+
+        Goes through adb_control.input_text (validated + POSIX-quoted); the previous implementation passed
+        unquoted text to `adb shell input text`, so characters such as ; | * ~ were interpreted by the phone's shell.
+        """
+        for line in text.splitlines() or [""]:
+            for start in range(0, len(line), 400):                    # validate_text caps one call at 500 chars
+                chunk = line[start:start + 400]
+                if chunk.strip():
+                    await asyncio.to_thread(adb_control.input_text, self.adb_address, chunk)
+            await asyncio.to_thread(adb_control.keyevent, self.adb_address, "KEYCODE_ENTER")
             await asyncio.sleep(0.1)
 
     async def _run_step(self, step: dict) -> None:
@@ -92,7 +88,7 @@ class AutomationRunner:
 
         if t == "open_app":
             await self._adb_run(
-                "shell", "monkey", "-p", step["package"],
+                "shell", "monkey", "-p", validate_package(step["package"]),
                 "-c", "android.intent.category.LAUNCHER", "1",
             )
 
@@ -109,7 +105,7 @@ class AutomationRunner:
             await self._type_text(step["text"])
 
         elif t == "key":
-            await self._adb_run("shell", "input", "keyevent", step["code"])
+            await asyncio.to_thread(adb_control.keyevent, self.adb_address, step["code"])
 
         elif t == "swipe_rel":
             w, h = await self._screen_size_px()

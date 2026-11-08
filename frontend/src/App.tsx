@@ -6,6 +6,7 @@ import AppsPage from './pages/AppsPage'
 import FilesPage from './pages/FilesPage'
 import SystemPage from './pages/SystemPage'
 import AdvancedPage from './pages/AdvancedPage'
+import AutomationCorePage from './pages/AutomationCorePage'
 import DevicePage from './pages/DevicePage'
 import AutomationPage from './pages/AutomationPage'
 import ContentStudioPage from './pages/ContentStudioPage'
@@ -37,7 +38,8 @@ export default function App() {
         <Route path="/system" element={<SystemPage />} />
         <Route path="/advanced" element={<AdvancedPage />} />
         <Route path="/device/:deviceId" element={<DevicePage />} />
-        <Route path="/automation" element={<AutomationPage />} />
+        <Route path="/automation" element={<AutomationCorePage />} />
+        <Route path="/automation-legacy" element={<AutomationPage />} />
         <Route path="/content" element={<ContentStudioPage />} />
         <Route path="/execution" element={<ExecutionMonitorPage />} />
         <Route path="/vision" element={<VisionDebuggerPage />} />

@@ -79,6 +79,8 @@ async def lifespan(app: FastAPI):
         stop_agents()
         _agent_task.cancel()
         await _device_monitor.stop()
+        from app.automation.core import get_engine
+        await get_engine().shutdown()
         from app.services.scrcpy_stream import stream_manager
         await stream_manager.stop_all()
         logger.info("MirrorHub shutdown complete")

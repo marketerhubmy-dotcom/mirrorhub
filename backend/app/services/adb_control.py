@@ -160,6 +160,14 @@ def tap(adb_address: str, rx: float, ry: float) -> None:
     _send(adb_address, f"input tap {x} {y}")
 
 
+def tap_px(adb_address: str, x: int, y: int) -> None:
+    """Tap at ABSOLUTE pixels (used by UI-text matching). Integers only, bounded."""
+    for v in (x, y):
+        if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 20000:
+            raise ControlError("pixel coordinate must be an integer 0..20000")
+    _send(adb_address, f"input tap {x} {y}")
+
+
 def long_press(adb_address: str, rx: float, ry: float) -> None:
     x, y = _px(adb_address, rx, ry)
     _send(adb_address, f"input swipe {x} {y} {x} {y} 700")

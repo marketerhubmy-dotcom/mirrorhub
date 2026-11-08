@@ -3,6 +3,7 @@ import { Page } from '../components/AppShell'
 import { Card, PageHeader, Pill } from '../components/ui'
 
 const MODULES = [
+  { to: '/automation-legacy', title: 'Automasi TikTok / YT Create', desc: 'Aliran kerja ChatGPT → YT Create → TikTok (versi asal).' },
   { to: '/quicklaunch', title: 'Quick Launch', desc: 'Jalankan aliran kerja pantas pada telefon pilihan.' },
   { to: '/pipeline', title: 'AI Video Studio', desc: 'Saluran kandungan YT Create → TikTok.' },
   { to: '/content', title: 'Content Studio', desc: 'Penjanaan kandungan dengan AI (perlu OPENAI_API_KEY).' },

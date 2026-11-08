@@ -118,6 +118,18 @@ export const systemApi2 = {
   restore: (name: string) => post<{ ok: boolean; message: string }>(`/system/restore/${encodeURIComponent(name)}`),
 }
 
+// ── automation core ───────────────────────────────────────────────────────────
+export interface AutoStep { type: string; label?: string; retries?: number; retry_delay?: number; timeout?: number; continue_on_error?: boolean; [k: string]: unknown }
+export interface AutoDevice { device_id: string; name: string; state: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'; step_index: number; steps_done: number; error: string; logs?: { t: string; level: string; msg: string }[] }
+export interface AutoRun { id: string; name: string; state: string; created_at: number; total_steps: number; steps: { type: string; label: string }[]; devices: AutoDevice[] }
+export const autoApi = {
+  validate: (steps: AutoStep[]) => post<{ ok: boolean }>('/auto/validate', { steps }),
+  start: (name: string, device_ids: string[], steps: AutoStep[]) => post<AutoRun>('/auto/runs', { name, device_ids, steps }),
+  runs: () => request<AutoRun[]>('/auto/runs'),
+  run: (id: string) => request<AutoRun>(`/auto/runs/${id}`),
+  cancel: (id: string) => post<{ ok: boolean }>(`/auto/runs/${id}/cancel`),
+}
+
 export function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

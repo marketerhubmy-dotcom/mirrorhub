@@ -40,6 +40,7 @@ REQUIRED_COLUMNS: dict[str, list[tuple[str, str]]] = {
         ("storage_free_mb",  "INTEGER DEFAULT 0"),
         ("screen_w",         "INTEGER DEFAULT 0"),
         ("screen_h",         "INTEGER DEFAULT 0"),
+        ("input_state",      "VARCHAR(16) DEFAULT ''"),
         ("tags",             "TEXT DEFAULT '[]'"),
         ("group_name",       "VARCHAR(64) DEFAULT ''"),
         ("notes",            "TEXT DEFAULT ''"),

@@ -58,6 +58,16 @@ async def control_endpoint(device_id: str, ws: WebSocket, db: AsyncSession) -> N
     device = await get_device(db, device_id)
     adb_address = device.adb_address if device else None
 
+    if adb_address:
+        # Some OEMs (Xiaomi/HyperOS) silently refuse injected input; tell the user instead of looking broken.
+        try:
+            from app.services.device_ops import input_state
+            state, msg = await input_state(adb_address)
+            if state == "blocked":
+                await ws.send_json({"error": "input_blocked", "detail": msg})
+        except Exception:
+            pass
+
     try:
         while True:
             raw = await ws.receive_json()

@@ -22,6 +22,7 @@ export interface Device {
   group_name?: string
   notes?: string
   last_error?: string
+  input_state?: '' | 'ok' | 'blocked' | 'unknown'
 }
 
 export type DeviceState = 'online' | 'offline' | 'unauthorized' | 'reconnecting' | 'absent'

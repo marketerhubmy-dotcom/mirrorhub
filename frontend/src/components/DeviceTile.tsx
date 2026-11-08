@@ -129,7 +129,12 @@ export default function DeviceTile({ device, profile, paused, focused = false, o
         {showOverlay && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 text-center px-3">
             <span className="text-sm text-gray-200">{STATE_LABEL[state]}</span>
-            {error && <span className="text-xs text-red-300 break-words max-h-20 overflow-auto">{error}</span>}
+            {error && (
+              <span className="text-xs text-red-300 break-words max-h-20 overflow-auto" title={error}>
+                {/* raw scrcpy server log lines follow "timed out"; keep the human sentence, full text stays in the tooltip */}
+                {(error.split('timed out waiting')[0].trim() || 'Strim tidak bermula. Semak skrin telefon dan kebenaran.').slice(0, 200)}
+              </span>
+            )}
           </div>
         )}
       </div>

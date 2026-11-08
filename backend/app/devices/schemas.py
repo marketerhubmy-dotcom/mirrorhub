@@ -30,6 +30,7 @@ class DeviceResponse(BaseModel):
     storage_free_mb: int = 0
     screen_w: int = 0
     screen_h: int = 0
+    input_state: str = ""
     tags: list[str] = []
     group_name: str = ""
     notes: str = ""

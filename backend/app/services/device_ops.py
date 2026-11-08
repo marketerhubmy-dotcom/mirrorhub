@@ -293,6 +293,36 @@ async def pull_file(serial: str, remote: str, local: Path) -> Path:
     return local
 
 
+# ── input / screen state probes ───────────────────────────────────────────────
+
+INPUT_BLOCKED_MSG = (
+    "Telefon menyekat input daripada PC. Xiaomi/Redmi/Poco: hidupkan 'USB debugging (Security settings)' dalam "
+    "Developer options (perlu SIM/akaun Mi). Mirrorhub tidak mengubah tetapan ini untuk anda."
+)
+
+
+def interpret_input_probe(result: AdbResult) -> tuple[str, str]:
+    text = result.text
+    if "INJECT_EVENTS" in text or "SecurityException" in text:
+        return "blocked", INPUT_BLOCKED_MSG
+    if result.rc == 0 and not text.strip():
+        return "ok", ""
+    return "unknown", text[:200]
+
+
+async def input_state(serial: str) -> tuple[str, str]:
+    """Send KEYCODE_UNKNOWN (a no-op key) and read the shell's answer. 'blocked' = OEM refuses injected input."""
+    r = await run_adb("shell", "input", "keyevent", "KEYCODE_UNKNOWN", serial=serial, timeout=10)
+    return interpret_input_probe(r)
+
+
+async def screen_awake(serial: str) -> bool | None:
+    r = await run_adb("shell", "dumpsys power | grep -m1 mWakefulness=", serial=serial, timeout=8)
+    if "mWakefulness=" not in r.out:
+        return None
+    return "Awake" in r.out
+
+
 # ── screenshot / recording ────────────────────────────────────────────────────
 
 async def screenshot(serial: str) -> bytes:

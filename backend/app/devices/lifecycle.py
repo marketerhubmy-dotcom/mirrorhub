@@ -59,6 +59,7 @@ class DeviceMonitor:
         connector: Callable[[str], Awaitable[tuple[bool, str]]] | None = None,
         poll_interval: float = 2.0,
         backoff: tuple[float, ...] = RECONNECT_BACKOFF_S,
+        input_prober: Callable[[str], Awaitable[tuple[str, str]]] | None = None,
         info_retries: int = 3,
         info_retry_delay: float = 1.5,
     ):
@@ -88,6 +89,10 @@ class DeviceMonitor:
         self._suppress: set[str] = set()             # serials the user disconnected on purpose
         self._bg: set[asyncio.Task] = set()
         self._first_tick_done = asyncio.Event()
+        if input_prober is None:
+            from app.services.device_ops import input_state
+            input_prober = input_state
+        self._probe_input = input_prober
 
     # ── pub/sub ───────────────────────────────────────────────────────────────
 
@@ -283,6 +288,11 @@ class DeviceMonitor:
                 logger.warning("info fetch %d/%d failed for %s: %s", attempt, self.info_retries, dev.serial, exc)
                 if attempt < self.info_retries:
                     await asyncio.sleep(self.info_retry_delay)
+        input_state = ""
+        try:
+            input_state, input_msg = await self._probe_input(dev.serial)
+        except Exception as exc:
+            logger.info("input probe failed for %s: %s", dev.serial, exc)
         hw = (info.hw_serial if info and info.hw_serial else None)
         if hw:
             self.hw_of[dev.serial] = hw
@@ -307,6 +317,7 @@ class DeviceMonitor:
             row.wifi = dev.transport == "wifi"
             row.last_seen = _now()
             row.last_error = err
+            row.input_state = input_state
             if hw:
                 row.hw_serial = hw
             if info:

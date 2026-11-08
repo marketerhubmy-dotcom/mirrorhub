@@ -27,6 +27,7 @@ class Device(Base):
     storage_free_mb: Mapped[int] = mapped_column(Integer, default=0)
     screen_w: Mapped[int] = mapped_column(Integer, default=0)
     screen_h: Mapped[int] = mapped_column(Integer, default=0)
+    input_state: Mapped[str] = mapped_column(String(16), default="")      # ""|ok|blocked|unknown (OEM input injection)
     tags: Mapped[str] = mapped_column(Text, default="[]")               # JSON list[str]
     group_name: Mapped[str] = mapped_column(String(64), default="")
     notes: Mapped[str] = mapped_column(Text, default="")

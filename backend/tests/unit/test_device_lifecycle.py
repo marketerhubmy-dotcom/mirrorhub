@@ -29,6 +29,7 @@ class Script:
         self.hw = {}          # adb serial -> hw serial
         self.connects: list[str] = []
         self.connect_ok = False
+        self.input = ("ok", "")
 
     async def lister(self):
         if self.fail:
@@ -40,6 +41,9 @@ class Script:
                           hw_serial=self.hw.get(serial, serial), battery=77, screen_w=1080, screen_h=2400,
                           storage_total_mb=1000, storage_free_mb=400)
 
+    async def probe(self, serial):
+        return self.input
+
     async def connect(self, addr):
         self.connects.append(addr)
         return self.connect_ok, "connected to" if self.connect_ok else "failed"
@@ -50,7 +54,8 @@ def world(db_engine):
     sf = async_sessionmaker(db_engine, expire_on_commit=False)
     s = Script()
     m = DeviceMonitor(session_factory=sf, lister=s.lister, info_fetcher=s.info, connector=s.connect,
-                      poll_interval=0.01, backoff=(0.01, 0.01, 0.01), info_retries=3, info_retry_delay=0)
+                      poll_interval=0.01, backoff=(0.01, 0.01, 0.01), info_retries=3, info_retry_delay=0,
+                      input_prober=s.probe)
     return m, s, sf
 
 
@@ -298,3 +303,18 @@ async def test_startup_reconcile_marks_stale_online_rows_offline(world):
     by = {r.device_id: r for r in await rows(sf)}
     assert by["ghost"].is_online is False and by["ghost"].state == "offline"
     assert by["live"].is_online is True
+
+
+@pytest.mark.asyncio
+async def test_blocked_input_is_recorded_on_the_device_row(world):
+    m, s, sf = world
+    s.input = ("blocked", "Telefon menyekat input")
+    s.devices = [dev("USB123")]
+    await m.tick(); await settle(m)
+    assert (await rows(sf))[0].input_state == "blocked"
+    s.input = ("ok", "")
+    s.devices = []
+    await m.tick(); await settle(m)
+    s.devices = [dev("USB123")]
+    await m.tick(); await settle(m)
+    assert (await rows(sf))[0].input_state == "ok"

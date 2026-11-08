@@ -172,3 +172,22 @@ def test_forget_and_patch_roundtrip_on_real_db(client):
     assert client.get("/api/v1/devices/dx").json()["tags"] == ["a"]
     assert client.delete("/api/v1/devices/dx?confirm=true").status_code == 200
     assert client.get("/api/v1/devices/dx").status_code == 404
+
+
+def test_control_ws_reports_blocked_input_on_connect(client, monkeypatch):
+    from app.devices.lifecycle import new_device_id
+    from app.services import device_ops
+    did = new_device_id("SERB", None)
+    con = sqlite3.connect(str(rp.db_path()))
+    con.execute("INSERT INTO devices (device_id, device_name, battery, wifi, is_online, adb_address, last_seen, created_at) "
+                "VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'))", (did, "B", 50, 1, 1, "SERB"))
+    con.commit()
+    con.close()
+
+    async def blocked(serial):
+        return "blocked", device_ops.INPUT_BLOCKED_MSG
+
+    monkeypatch.setattr(device_ops, "input_state", blocked)
+    with client.websocket_connect(f"/ws/control/{did}", headers=OK) as ws:
+        msg = ws.receive_json()
+    assert msg["error"] == "input_blocked" and "Security settings" in msg["detail"]

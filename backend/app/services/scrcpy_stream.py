@@ -412,7 +412,14 @@ class StreamSession:
                 return reader
             writer.close()
             await asyncio.sleep(0.25)
-        raise RuntimeError("timed out waiting for video stream: " + " | ".join(list(self.server_log)[-5:]))
+        hint = ""
+        try:
+            from app.services.device_ops import screen_awake
+            if await screen_awake(self.serial) is False:
+                hint = "Skrin telefon mati/terkunci - hidupkan skrin telefon. "
+        except Exception:
+            pass
+        raise RuntimeError(hint + "timed out waiting for video stream: " + " | ".join(list(self.server_log)[-5:]))
 
     async def _drain_server_log(self, proc: asyncio.subprocess.Process) -> None:
         try:

@@ -233,3 +233,25 @@ async def test_screenshot_validates_png(monkeypatch):
     monkeypatch.setattr(ops, "run_adb_bytes", bad)
     with pytest.raises(AdbError):
         await ops.screenshot("S")
+
+
+# ── input / screen probes (real Redmi/HyperOS output captured 2026-11-08) ──
+SEC = "Exception occurred while executing 'keyevent':" + chr(10) + "java.lang.SecurityException: Injecting input events requires the caller (or the source of the instrumentation, if any) to have the INJECT_EVENTS permission."
+
+
+def test_interpret_input_probe():
+    assert ops.interpret_input_probe(AdbResult(0, "", SEC))[0] == "blocked"
+    assert "Security settings" in ops.interpret_input_probe(AdbResult(0, "", SEC))[1]
+    assert ops.interpret_input_probe(AdbResult(0, ""))[0] == "ok"
+    assert ops.interpret_input_probe(AdbResult(1, "", "error: closed"))[0] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_input_state_and_screen_awake(monkeypatch):
+    f = patch(monkeypatch, AdbResult(0, "", SEC), AdbResult(0, "  mWakefulness=Dozing"),
+              AdbResult(0, "  mWakefulness=Awake"), AdbResult(0, ""))
+    assert (await ops.input_state("S"))[0] == "blocked"
+    assert f.calls[0][0] == ("shell", "input", "keyevent", "KEYCODE_UNKNOWN")
+    assert await ops.screen_awake("S") is False
+    assert await ops.screen_awake("S") is True
+    assert await ops.screen_awake("S") is None

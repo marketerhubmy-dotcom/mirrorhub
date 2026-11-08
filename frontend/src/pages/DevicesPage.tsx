@@ -176,6 +176,13 @@ function DeviceCard({ d, busy, run, onEdit, onForget, onShot, afterAction }: {
         </p>
       )}
 
+      {online && d.input_state === 'blocked' && (
+        <p className="text-xs text-amber-300 bg-amber-500/10 rounded-lg px-3 py-2 leading-relaxed" role="alert">
+          <b>Input disekat oleh telefon.</b> Skrin boleh dilihat tetapi ketik/taip tidak berfungsi. Xiaomi/Redmi/Poco: hidupkan
+          &quot;USB debugging (Security settings)&quot; dalam Developer options.
+        </p>
+      )}
+
       <p className="font-mono text-[11px] text-gray-500 truncate" title={d.adb_address ?? ''}>{d.adb_address ?? '—'}</p>
 
       <div className="flex flex-wrap gap-2 mt-auto">

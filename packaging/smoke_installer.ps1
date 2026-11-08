@@ -26,6 +26,7 @@ if ($IsolatedProfile) {
   $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
   Remove-Item Env:MIRRORHUB_DATA_DIR
   $data = "$prof\AppData\Roaming\Mirrorhub"
+  New-Item -ItemType Directory -Force $data | Out-Null
   Check 'isolated profile active (no python/node on PATH)' (-not (Get-Command python -ErrorAction SilentlyContinue) -and -not (Get-Command node -ErrorAction SilentlyContinue))
 }
 # sentinel to prove uninstall does not delete user data
@@ -77,6 +78,6 @@ Check 'start menu shortcut removed' ($null -eq $startMenu)
 
 $results | ConvertTo-Json | Set-Content (Join-Path $root 'build\installer-smoke.json') -Encoding utf8
 Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
-$fail = ($results | Where-Object status -eq 'FAIL').Count
+$fail = @($results | Where-Object { $_.status -eq 'FAIL' }).Count   # @() : a single hit has no .Count in PS 5.1 pipelines
 Write-Host "`nSMOKE: $($results.Count - $fail)/$($results.Count) passed"
 exit $(if ($fail) { 1 } else { 0 })

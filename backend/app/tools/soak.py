@@ -21,13 +21,17 @@ import httpx
 import websockets
 
 
-async def watch(base_ws: str, device_id: str, profile: str, stats: dict, stop: asyncio.Event) -> None:
+async def watch(base_ws: str, device_id: str, profile: str, stats: dict, stop: asyncio.Event, churn: float = 0) -> None:
     s = stats[device_id] = {"frames": 0, "bytes": 0, "reconnects": 0, "errors": [], "last_frame": time.time(), "states": {}}
     while not stop.is_set():
         try:
             async with websockets.connect(f"{base_ws}/ws/video/{device_id}?profile={profile}",
                                           origin="http://127.0.0.1:8000", max_size=32 * 1024 * 1024) as ws:
+                deadline = time.time() + churn if churn else None
                 while not stop.is_set():
+                    if deadline and time.time() > deadline:
+                        s["churns"] = s.get("churns", 0) + 1       # deliberate close+reopen, like leaving and re-opening the Wall
+                        break
                     try:
                         m = await asyncio.wait_for(ws.recv(), 1.0)
                     except asyncio.TimeoutError:
@@ -44,6 +48,8 @@ async def watch(base_ws: str, device_id: str, profile: str, stats: dict, stop: a
                             s["errors"].append(ev.get("error", "")[:120])
         except Exception as exc:
             s["errors"].append(str(exc)[:120])
+        if churn and not stop.is_set():
+            continue
         if not stop.is_set():
             s["reconnects"] += 1
             await asyncio.sleep(min(1 + s["reconnects"], 10))
@@ -59,7 +65,7 @@ async def main_async(a) -> int:
         print(f"soak: {len(devs)} device(s), {a.minutes} min, profile={a.profile}")
         stats: dict = {}
         stop = asyncio.Event()
-        tasks = [asyncio.create_task(watch(base_ws, d["device_id"], a.profile, stats, stop)) for d in devs]
+        tasks = [asyncio.create_task(watch(base_ws, d["device_id"], a.profile, stats, stop, a.churn)) for d in devs]
         rows = []
         t0 = time.time()
         end = t0 + a.minutes * 60
@@ -101,7 +107,9 @@ async def main_async(a) -> int:
         if (last["threads"] or 0) - (first["threads"] or 0) > 20:
             verdict.append("FAIL: thread growth")
     for did, s in stats.items():
-        verdict.append(f"{did[:8]}: frames={s['frames']} reconnects={s['reconnects']} states={s['states']} errors={len(s['errors'])}")
+        verdict.append(f"{did[:8]}: frames={s['frames']} reconnects={s['reconnects']} churns={s.get('churns', 0)} states={s['states']} errors={len(s['errors'])}")
+        for e in sorted(set(s["errors"]))[:3]:
+            verdict.append(f"    error sample: {e}")
     bad = [v for v in verdict if v.startswith("FAIL") or "unreachable" in v]
     print("\n".join(verdict))
     print("SOAK", "FAIL" if bad else "PASS", f"({a.minutes} min)")
@@ -114,6 +122,7 @@ def main() -> int:
     ap.add_argument("--interval", type=float, default=30)
     ap.add_argument("--profile", default="normal", choices=["thumb", "normal", "focus"])
     ap.add_argument("--base", default="http://127.0.0.1:8000")
+    ap.add_argument("--churn", type=float, default=0, help="close and reopen every stream every N seconds (viewer-churn leak test)")
     ap.add_argument("--out")
     ap.add_argument("--max-rss-growth-mb", type=float, default=150)
     return asyncio.run(main_async(ap.parse_args()))

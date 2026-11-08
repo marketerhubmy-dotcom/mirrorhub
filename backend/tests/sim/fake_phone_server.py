@@ -19,9 +19,9 @@ from app.websocket import control as control_mod, video as video_mod
 
 DEVICES = {
     "dev-A": types.SimpleNamespace(device_id="dev-A", device_name="Fake Phone A", adb_address="10.0.0.1:5555",
-                                   battery=90, wifi=True, is_online=True, last_seen="now"),
+                                   battery=90, wifi=True, is_online=True, state="online", last_seen="now"),
     "dev-B": types.SimpleNamespace(device_id="dev-B", device_name="Fake Phone B", adb_address="10.0.0.2:5555",
-                                   battery=55, wifi=True, is_online=True, last_seen="now"),
+                                   battery=55, wifi=True, is_online=True, state="online", last_seen="now"),
 }
 LOG: list[dict] = []
 
@@ -78,6 +78,34 @@ async def device(did: str): return vars(DEVICES[did])
 @app.get("/api/v1/mirror/{did}/status")
 async def mstatus(did: str): return {"device_id": did, "mirroring": False}
 
+@app.get("/api/v1/system/metrics")
+async def metrics():
+    from app.services.metrics import process_metrics
+    return {"process": process_metrics(), "streams": video_mod.stream_manager.stats()}
+
+import os, tracemalloc
+_BASE = {}
+if os.environ.get("MH_TRACE"):
+    tracemalloc.start(12)
+
+@app.get("/__mem")
+async def mem(reset: bool = False):
+    """Leak hunting: top allocation growth since the previous reset (needs MH_TRACE=1)."""
+    if not tracemalloc.is_tracing():
+        return {"error": "start with MH_TRACE=1"}
+    snap = tracemalloc.take_snapshot()
+    if reset or "s" not in _BASE:
+        _BASE["s"] = snap
+        return {"reset": True}
+    stats = snap.compare_to(_BASE["s"], "lineno")[:12]
+    return [{"diff_kb": round(s.size_diff / 1024, 1), "count": s.count_diff, "where": str(s.traceback[0])} for s in stats]
+
+@app.get("/__gc")
+async def gc_now():
+    import gc
+    n = gc.collect()
+    return {"collected": n}
+
 @app.get("/__log")
 async def log(): return LOG
 
@@ -93,4 +121,5 @@ app.mount("/assets", StaticFiles(directory=dist / "assets"))
 async def spa(p: str = ""): return FileResponse(dist / "index.html")
 
 print(f"{len(NALS)} NALs / {len(AUS)} pictures loaded; serving on 127.0.0.1:{port}", flush=True)
-uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning",
+            ws_per_message_deflate=os.environ.get("MH_DEFLATE") == "1")

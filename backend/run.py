@@ -15,4 +15,5 @@ if __name__ == "__main__":
         host=effective_bind_host(settings.host, settings.allow_remote_bind),
         port=settings.port,
         reload=False,
+        ws_per_message_deflate=False,
     )

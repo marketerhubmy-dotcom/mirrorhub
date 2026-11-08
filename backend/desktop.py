@@ -71,7 +71,8 @@ class Backend:
         import uvicorn
         from app.main import app  # imported directly so PyInstaller bundles it
 
-        config = uvicorn.Config(app, host="127.0.0.1", port=self.port, log_config=None, access_log=False)
+        config = uvicorn.Config(app, host="127.0.0.1", port=self.port, log_config=None, access_log=False,
+                                ws_per_message_deflate=False)  # H.264 is already compressed; deflate only burns CPU + ~110 KB per socket
         self.server = uvicorn.Server(config)
 
         def run() -> None:

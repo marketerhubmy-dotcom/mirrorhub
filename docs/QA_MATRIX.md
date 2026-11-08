@@ -22,7 +22,7 @@ Legenda: PASS / FAIL / NOT TESTED. **PASS (HW)** = telefon sebenar. **PASS (sim)
 | 8 | Reliability | Cabut USB / WiFi putus / reboot | PASS (sim: state machine, reconnect, outage adb) · **HW NOT TESTED** | `test_device_lifecycle.py` (H5–H8) | — |
 | 8a | Reliability | Unauthorized dilaporkan | PASS (sim) | HW NOT TESTED (H8) | — |
 | 9 | Installer | Pasang/nyahpasang/kemas kini | **PASS (mesin pembangun) 18/18** | `packaging/smoke_installer.ps1`, `build/installer-smoke.json` | 2026-11-08 |
-| 9a | Installer | Windows bersih tanpa Python/Node | NOT TESTED | H15 | — |
+| 9a | Installer | Windows bersih tanpa Python/Node | NOT TESTED pada VM bersih. Separa: exe beku lulus selftest dengan PATH hanya System32 (2026-11-08) | H15 | — |
 | 9b | Installer | Tandatangan kod | NOT DONE | pemilik | — |
 | 10 | Stability | Soak 8 jam | NOT TESTED | H13 | — |
 | 11 | Database | Migrasi AppData + backup + restore berperingkat | PASS (unit 14 + API) | `test_data_migration.py`, smoke app | 2026-11-08 |

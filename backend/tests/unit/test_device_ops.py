@@ -255,3 +255,23 @@ async def test_input_state_and_screen_awake(monkeypatch):
     assert await ops.screen_awake("S") is False
     assert await ops.screen_awake("S") is True
     assert await ops.screen_awake("S") is None
+
+
+def test_mp4_completeness_check(tmp_path):
+    good = tmp_path / "g.mp4"
+    good.write_bytes(b"\x00\x00\x00\x18ftypmp42" + bytes(9000) + b"moov" + bytes(100))
+    broken = tmp_path / "b.mp4"
+    broken.write_bytes(b"\x00\x00\x00\x18ftypmp42" + bytes(3200))            # the 3232-byte header-only file seen on hardware
+    tiny = tmp_path / "t.mp4"
+    tiny.write_bytes(b"ftyp")
+    notmp4 = tmp_path / "n.mp4"
+    notmp4.write_bytes(bytes(9000) + b"moov")
+    assert ops.mp4_is_complete(good)
+    assert not ops.mp4_is_complete(broken) and not ops.mp4_is_complete(tiny) and not ops.mp4_is_complete(notmp4)
+    assert not ops.mp4_is_complete(tmp_path / "missing.mp4")
+
+
+def test_recordings_are_written_outside_the_sdcard_fuse_layer():
+    # real hardware: screenrecord stalled ~9 s on /sdcard (FUSE) right after a package install -> header-only MP4
+    assert not ops.RECORD_TMP_DIR.startswith(("/sdcard", "/storage"))
+    assert ops.validate_remote_path(ops.RECORD_TMP_DIR + "/mirrorhub_rec_1.mp4", allow_root=False)

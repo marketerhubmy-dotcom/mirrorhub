@@ -44,3 +44,19 @@ Legenda: PASS / FAIL / NOT TESTED. **PASS (HW)** = telefon sebenar. **PASS (sim)
 | S3 | Kemas kini pemasang di atas aplikasi berjalan | **PASS** | hash binari sama, data utuh |
 | S4 | SINGLE_DEVICE_READY | **YA** | `RELEASE.md` |
 | S5 | MULTI_DEVICE_READY | **TIDAK (belum diuji)** | `HARDWARE_VALIDATION.md` |
+
+
+## V1.1 (2026-11-09)
+| # | Item | Status | Bukti |
+|---|---|---|---|
+| P1 | Backend pytest | **PASS 553 lulus, 0 gagal, 14 dikuarantin** | liputan teras **79.1 %** (gate 60 %); seluruh kod **52.2 %** (maklumat, tanpa pengecualian) |
+| P2 | Frontend `tsc`, `vite build`, **vitest 13 ujian** | **PASS** | dijalankan oleh `packaging\build.ps1` |
+| P3 | Dashboard: metrik sebenar, graf, jadual per peranti, kesihatan, amaran, peristiwa, eksport | **PASS (HW 2 Pixel)** | `HARDWARE_VALIDATION.md` V3–V9 |
+| P4 | Pengasingan multi-device (perisian) | PASS | `test_multidevice_isolation.py` (8) + `test_perf.py` (55) |
+| P5 | Pengasingan input dua telefon (perkakasan) | **PASS (HW 2 Pixel)** | V1 |
+| P6 | Tiada reconnect loop / kebocoran kritikal dalam ujian yang dijalankan | **PASS (terhad)**: 30 min dipasang (RSS +4.9 MB), 12 min, 9-peranti simulasi 8 min | V11–V12; **bukan soak 8 jam** |
+| P7 | Soak 8 jam | **NOT TESTED** | — |
+| P8 | Pemasang 1.1.0: build, smoke 19/19 (normal), 20/20 (profil terpencil), kemas kini dari 1.0.0 | **PASS (mesin pembangun)** | `packaging\smoke_installer.ps1` |
+| P9 | Windows bersih | **BLOCKED** | Windows Home |
+| P10 | MULTI_DEVICE_READY | **TIDAK** (4+ telefon, 8 j, USB/WiFi fizikal belum diuji) | — |
+| P11 | Regresi satu telefon pada aplikasi dipasang (screenshot, fail SHA, APK, rakaman, automasi) | **PASS (HW Pixel 6) 3/3 larian** selepas pembetulan K38 (rakaman sebelum ini flaky) | `HARDWARE_VALIDATION.md` V15–V16 |

@@ -341,11 +341,17 @@ async def screenshot(serial: str) -> bytes:
 _recordings: dict[str, tuple[asyncio.subprocess.Process, str, float]] = {}
 
 
+RECORD_TMP_DIR = "/data/local/tmp"
+
+
 async def record_start(serial: str, seconds: int = 180) -> str:
     if serial in _recordings and _recordings[serial][0].returncode is None:
         raise OpError("Rakaman sedang berjalan untuk peranti ini.")
     seconds = max(5, min(int(seconds), 180))  # Android's screenrecord hard limit is 180 s
-    remote = f"/sdcard/mirrorhub_rec_{int(time.time())}.mp4"
+    # /data/local/tmp is shell-writable and NOT behind the /sdcard FUSE layer: on real hardware, right after a package
+    # install/uninstall screenrecord blocked ~9 s in fuse_simple_request opening a /sdcard file, so an early stop
+    # produced a header-only MP4.
+    remote = f"{RECORD_TMP_DIR}/mirrorhub_rec_{int(time.time())}.mp4"
     from app.services.adb_client import ADB, _NO_WINDOW, validate_serial
     proc = await asyncio.create_subprocess_exec(
         str(ADB), "-s", validate_serial(serial), "shell", "screenrecord", "--time-limit", str(seconds), remote,
@@ -370,13 +376,42 @@ async def record_stop(serial: str) -> Path:
             await asyncio.wait_for(proc.wait(), 8)
         except asyncio.TimeoutError:
             proc.kill()
-    await asyncio.sleep(0.5)
+    # Wait until the file stops growing: screenrecord writes the MP4 index (moov) only when it finalises.
+    last = -1
+    for _ in range(20):
+        r = await run_adb("shell", f"stat -c %s {sh_quote(remote)}", serial=serial, timeout=10)
+        size = int(r.out.strip()) if r.out.strip().isdigit() else 0
+        if size == last and size > 0:
+            break
+        last = size
+        await asyncio.sleep(0.4)
     out_dir = rp.data_dir() / "recordings"
     out_dir.mkdir(exist_ok=True)
-    local = out_dir / f"{re.sub(r'[^A-Za-z0-9._-]', '_', serial)}_{int(time.time())}.mp4"
+    local = out_dir / f"{re.sub(r'[^A-Za-z0-9._-]', '_', serial)}_{int(time.time() * 1000)}.mp4"
     await pull_file(serial, remote, local)
+    if not mp4_is_complete(local):
+        # observed intermittently on real hardware (header-only file): never hand the user a broken video silently
+        local.unlink(missing_ok=True)
+        await run_adb("shell", f"rm -f {sh_quote(remote)}", serial=serial, timeout=10)
+        raise AdbError("Rakaman tidak lengkap (screenrecord tidak sempat menulis fail). Cuba lagi; elakkan menghentikan "
+                       "rakaman terlalu awal atau semasa pengekod video sedang sibuk.")
     await run_adb("shell", f"rm -f {sh_quote(remote)}", serial=serial, timeout=10)
     return local
+
+
+def mp4_is_complete(path: Path) -> bool:
+    """A finished screenrecord MP4 has an 'ftyp' header and a 'moov' index (written last)."""
+    try:
+        size = path.stat().st_size
+        if size < 4096:
+            return False
+        with path.open("rb") as f:
+            head = f.read(64)
+            f.seek(max(0, size - 4 * 1024 * 1024))
+            tail = f.read()
+        return head[4:8] == b"ftyp" and b"moov" in (tail if size > 4 * 1024 * 1024 else head + tail)
+    except OSError:
+        return False
 
 
 def recording_active(serial: str) -> bool:

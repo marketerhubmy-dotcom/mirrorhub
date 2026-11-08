@@ -44,6 +44,14 @@ Layari storan telefon (`/sdcard` dsb.), muat naik (seret & lepas, banyak fail), 
 Bina urutan: buka/tutup aplikasi, ketik, leret, taip, kekunci, navigasi, tunggu, **ketik/tunggu teks pada skrin** (uiautomator), tangkap skrin. Setiap langkah boleh *cuba semula*, ada *had masa* dan *teruskan jika gagal*. Pilih peranti → *Jalankan*; telefon berjalan serentak, satu kegagalan tidak menghentikan yang lain; **Batal** menghentikan serta-merta. Satu telefon hanya boleh menjalankan satu automasi pada satu masa. Templat disimpan dalam pelayar/tetingkap ini. **Semak urutan pada satu telefon dahulu** — automasi menggerakkan telefon sebenar.
 Modul lama (TikTok / YT Create / AI) ada di *Lanjutan*.
 
+## 8b. Prestasi (sidebar "Prestasi")
+- **Kad ringkasan**: peranti bersambung/terputus/perlu kebenaran, strim aktif, FPS purata, CPU/RAM **PC** berasingan daripada CPU/RAM **proses Mirrorhub**, reconnect, kesihatan keseluruhan.
+- **Graf langsung** (CPU, RAM, FPS, strim, reconnect, soket) dengan sejarah 5 min / 15 min / 1 jam / sesi. Sejarah hanya dalam memori; hilang bila aplikasi ditutup.
+- **Jadual per peranti**: FPS, resolusi, bitrate, masa mula, reconnect, bateri, ralat terakhir. Nilai yang tidak boleh diukur dipaparkan **N/A + sebab** (bukan angka rekaan).
+- **Kesihatan**: Sihat / Terjejas / Menyambung semula / Terputus / Perlu kebenaran. Telefon yang skrinnya statik (idle, 0 fps) dianggap **sihat**, bukan rosak.
+- **Amaran**: RAM tinggi, CPU berterusan tinggi, gelung reconnect, strim tersangkut, pertumbuhan memori, terlalu banyak strim. Ambang boleh diubah dalam tetapan; lihat `docs/PERFORMANCE_DASHBOARD.md`.
+- **Diagnostik**: butang *Salin laporan*, *Eksport JSON/CSV* — tiada kata laluan/kunci/kandungan skrin; IP dan nama pengguna Windows dimasking.
+
 ## 9. Sistem
 Diagnostik persekitaran, lokasi data, **Cipta backup**, **Pulihkan** (dijadualkan; dilaksanakan apabila aplikasi dibuka semula, dengan backup keselamatan keadaan semasa).
 

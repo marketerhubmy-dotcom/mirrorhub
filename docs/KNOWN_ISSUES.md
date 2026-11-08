@@ -29,3 +29,14 @@
 | K25 | RSS bergerigi (≈ +5.5 MB/min hingga ≈ 270 MB) | **DIBETULKAN** — GC berkala 30 s; RSS rata (+4 MB / 16 min) |
 | K26 | Menutup tetingkap ≈ 9 s (hos WebView2) | Terbuka, kosmetik |
 | K27 | Ujian input dilakukan semasa pemilik/automasi menggunakan TikTok/Threads pada Pixel | Dinyatakan dalam laporan E2E; input dihentikan sebaik dikesan |
+| K28 | Soket video diputuskan pada setiap keyframe besar (dua penulis serentak pada satu soket) | **DIBETULKAN** (V1.0.x, ujian regresi) |
+| K29 | Pertumbuhan memori ≈ 5 MB/min (struktur ctypes per sampel, subproses asyncio per poll adb, tugas WS tidak di-await, fail reaper) | **DIBETULKAN di punca (V1.1)**; GC 5 min hanya jaring keselamatan; baki ≈ sampah SQLAlchemy daripada gelung modul lanjutan |
+| K30 | "FPS rendah" palsu pada telefon idle (letusan keyframe awal / notifikasi singkat) | **DIBETULKAN (V1.1)** |
+| K31 | Satu gangguan dikira 5 reconnect dan mencetus amaran gelung palsu | **DIBETULKAN (V1.1)** |
+| K32 | Laporan diagnostik membocorkan IP apabila nama peranti = IP:port | **DIBETULKAN (V1.1)** |
+| K33 | Statistik penyahkod pelayar: penulis terakhir menang jika beberapa pelayar membuka peranti sama | Terbuka (dinyatakan dalam dokumen dashboard) |
+| K34 | Latency tap→bingkai tidak diukur | Terbuka |
+| K35 | Sejarah prestasi hanya dalam memori (hilang bila aplikasi ditutup) | Terbuka |
+| K36 | Bundle frontend > 500 KB (amaran Vite) | Terbuka, kosmetik |
+| K38 | Rakaman skrin: fail MP4 tidak lengkap (3232 B, tanpa `moov`) kadangkala, terutama sebaik selepas pasang/nyahpasang APK — `screenrecord` tersekat ≈ 9 s dalam `fuse_simple_request` membuka fail di `/sdcard` lalu dihentikan sebelum bermula | **DIBETULKAN (V1.1)**: rakam ke `/data/local/tmp` (bukan FUSE), tunggu saiz stabil, sahkan `ftyp`+`moov`, jika tidak lengkap fail dibuang dan ralat jelas dipaparkan (bukan video rosak senyap). Disahkan 5/5 + 3/3 pada telefon sebenar dalam keadaan yang sebelum ini gagal 6/6 |
+| K37 | Telefon dikunci tidak boleh dikawal/diuji (Mirrorhub tidak membuka kunci) | Dengan reka bentuk |

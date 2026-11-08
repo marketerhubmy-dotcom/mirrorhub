@@ -63,6 +63,16 @@ async def lifespan(app: FastAPI):
     _agent_task = asyncio.create_task(agent_run_loop())
     logger.info("AI Agent manager started")
 
+    async def _gc_loop() -> None:
+        # asyncio subprocess/websocket objects form reference cycles; Python's lazy gen-2 collection let RSS climb
+        # ~5 MB/min (sawtooth up to ~270 MB in a 25 min real soak). A cheap periodic full collection keeps it flat.
+        import gc
+        while True:
+            await asyncio.sleep(30)
+            gc.collect()
+
+    _gc_task = asyncio.create_task(_gc_loop())
+
     from app.devices.lifecycle import get_monitor
     _device_monitor = get_monitor()
     _device_monitor.start()
@@ -78,6 +88,7 @@ async def lifespan(app: FastAPI):
         _monitor_task.cancel()
         stop_agents()
         _agent_task.cancel()
+        _gc_task.cancel()
         await _device_monitor.stop()
         from app.automation.core import get_engine
         await get_engine().shutdown()

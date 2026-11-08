@@ -9,6 +9,11 @@ $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $Setup) { $Setup = (Get-ChildItem (Join-Path $root 'dist\Mirrorhub-Setup-*.exe') | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName }
 $results = New-Object System.Collections.Generic.List[object]
+# The smoke installer shares the real installer's AppId, so install+uninstall in a temp dir also removes the
+# user's Start Menu / Desktop shortcuts and uninstall entry. Remember a real install and restore it at the end.
+$realDir = Join-Path $env:LOCALAPPDATA 'Programs\Mirrorhub'
+$hadRealInstall = Test-Path (Join-Path $realDir 'MirrorHub.exe')
+if ($hadRealInstall) { Write-Host "NOTE: a real installation exists at $realDir - it will be re-installed after the smoke test to restore shortcuts." }
 function Check($name, $ok, $detail = '') { $results.Add([pscustomobject]@{ check = $name; status = $(if ($ok) { 'PASS' } else { 'FAIL' }); detail = $detail }); Write-Host ("[{0}] {1} {2}" -f $(if ($ok) { 'PASS' } else { 'FAIL' }), $name, $detail) }
 
 $work = Join-Path $env:TEMP ("mh-smoke-" + [guid]::NewGuid().ToString('N'))
@@ -76,6 +81,10 @@ Check 'user data preserved' ((Test-Path (Join-Path $data 'sentinel.txt')) -and (
 $startMenu = Get-ChildItem (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') -Filter 'Mirrorhub*.lnk' -ErrorAction SilentlyContinue
 Check 'start menu shortcut removed' ($null -eq $startMenu)
 
+if ($hadRealInstall) {
+  $restore = Start-Process -FilePath $Setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /TASKS=desktopicon" -Wait -PassThru
+  Check 'real installation restored (shortcuts + uninstall entry)' ($restore.ExitCode -eq 0 -and (Test-Path (Join-Path $realDir 'MirrorHub.exe')) -and @(Get-ChildItem (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') -Filter 'Mirrorhub*.lnk' -ErrorAction SilentlyContinue).Count -ge 1)
+}
 $results | ConvertTo-Json | Set-Content (Join-Path $root 'build\installer-smoke.json') -Encoding utf8
 Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 $fail = @($results | Where-Object { $_.status -eq 'FAIL' }).Count   # @() : a single hit has no .Count in PS 5.1 pipelines

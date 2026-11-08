@@ -138,7 +138,8 @@ function DeviceCard({ d, busy, run, onEdit, onForget, onShot, afterAction }: {
   const toast = useToast()
   const s = stateOf(d)
   const online = s === 'online'
-  const isWifi = d.transport === 'wifi' || (d.adb_address ?? '').includes(':')
+  const isEmu = (d.transport as string) === 'emulator'
+  const isWifi = !isEmu && (d.transport === 'wifi' || (d.adb_address ?? '').includes(':'))
   const total = d.storage_total_mb ?? 0
   const free = d.storage_free_mb ?? 0
 
@@ -156,7 +157,7 @@ function DeviceCard({ d, busy, run, onEdit, onForget, onShot, afterAction }: {
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        <Pill tone="brand">{isWifi ? 'WiFi' : 'USB'}</Pill>
+        <Pill tone="brand">{isEmu ? 'Maya' : isWifi ? 'WiFi' : 'USB'}</Pill>
         {d.group_name && <Pill>{d.group_name}</Pill>}
         {(d.tags ?? []).map((t) => <Pill key={t}>#{t}</Pill>)}
       </div>

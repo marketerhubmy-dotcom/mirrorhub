@@ -367,3 +367,21 @@ async def test_reconnect_now_resolves_and_reports(world):
     s.mdns[MDNS] = "10.0.0.5:4444"
     s.connect_ok = True
     assert (await m.reconnect_now(MDNS))[0] is True and s.connects == ["10.0.0.5:4444"]
+
+
+@pytest.mark.asyncio
+async def test_emulator_registers_as_a_normal_device_with_its_own_identity(world):
+    """Future-proofing (Phase 06): an emulator appears in `adb devices` and must flow through the same pipeline."""
+    m, s, sf = world
+    s.hw = {"emulator-5554": "EMU1", "USB123": "HW9"}
+    s.devices = [dev("emulator-5554"), dev("USB123")]
+    await m.tick(); await settle(m)
+    rows_ = {r.hw_serial: r for r in await rows(sf)}
+    assert rows_["EMU1"].transport == "emulator" and rows_["EMU1"].is_online
+    assert rows_["HW9"].transport == "usb"
+    assert rows_["EMU1"].device_id != rows_["HW9"].device_id          # every device keeps its own device_id
+    s.devices = [dev("USB123")]
+    await m.tick(); await settle(m)
+    assert not {r.hw_serial: r for r in await rows(sf)}["EMU1"].is_online
+    await asyncio.sleep(0.05)
+    assert s.connects == []                                             # emulators are never wifi-reconnected

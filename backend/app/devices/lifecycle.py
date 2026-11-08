@@ -272,7 +272,7 @@ class DeviceMonitor:
                     return
             row.state = "unauthorized" if dev.state == "unauthorized" else "offline"
             row.is_online = False
-            row.transport = dev.transport if dev.transport in ("usb", "wifi") else row.transport
+            row.transport = dev.transport if dev.transport in ("usb", "wifi", "emulator") else row.transport
             row.last_error = STATE_HELP.get(dev.state, dev.state)
             await db.commit()
         self._emit(type="changed")
@@ -313,7 +313,7 @@ class DeviceMonitor:
             other_alive = other is not None and other.state == "device" and other.transport == "usb"
             if not (other_alive and dev.transport == "wifi"):
                 row.adb_address = dev.serial
-                row.transport = dev.transport if dev.transport in ("usb", "wifi") else "usb"
+                row.transport = dev.transport if dev.transport in ("usb", "wifi", "emulator") else "usb"   # emulator = future local virtual phones
             row.state = "online"
             row.is_online = True
             row.wifi = dev.transport == "wifi"

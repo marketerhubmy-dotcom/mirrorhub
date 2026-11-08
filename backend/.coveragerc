@@ -1,0 +1,38 @@
+# Coverage scope = Desktop V1 product core (ADR-007). The gate (>= 60 %) applies to THIS scope.
+# The pre-V1 automation / AI / content pipeline packages are excluded from the gate, NOT hidden:
+# `pytest --cov-config=.coveragerc.all --cov-fail-under=0` reports the whole codebase (see docs/QA_MATRIX.md for both numbers).
+[run]
+source = app
+omit =
+    */tests/*
+    */alembic/*
+    */scripts/*
+    app/execution/*
+    app/apps/*
+    app/workflows/*
+    app/content/*
+    app/vision/*
+    app/campaign/*
+    app/orchestrator/*
+    app/agents/*
+    app/api/automation.py
+    app/api/products.py
+    app/api/quicklaunch.py
+    app/services/automation_runner.py
+    app/services/ai_generator.py
+    app/services/product_scraper.py
+    app/services/product_duplicate.py
+    app/models/product.py
+    app/websocket/execution_stream.py
+    app/websocket/vision_stream.py
+    app/websocket/workflow_stream.py
+    app/websocket/campaign_stream.py
+    app/websocket/orchestrator_stream.py
+    app/websocket/agent_stream.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if TYPE_CHECKING:

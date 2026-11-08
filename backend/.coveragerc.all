@@ -1,0 +1,14 @@
+# Whole-codebase coverage (no scope reduction). Informational: pytest --cov-config=.coveragerc.all --cov-fail-under=0
+[run]
+source = app
+omit =
+    */tests/*
+    */alembic/*
+    */scripts/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if TYPE_CHECKING:

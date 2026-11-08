@@ -70,6 +70,13 @@ Uses a self-referencing trick (`if "%~1"=="--inside" goto :main`) to open a new 
 └── connect_phone.bat   First-time wireless pairing via adb pair
 ```
 
+## Desktop V1 additions (read docs/ first)
+- Installer: `powershell -ExecutionPolicy Bypass -File packaginguild.ps1` → `dist\Mirrorhub-Setup-<ver>.exe`; verify with `packaging\smoke_installer.ps1`. Frozen entry: `backend/mirrorhub_app.py` → `desktop.py` (`--selftest`, `--diag`, `--hwcheck`, `--serve-only`).
+- Device layer: `services/adb_client.py` (validated adb), `devices/lifecycle.py` (hot-plug monitor + auto-reconnect, `/ws/devices`), `services/device_ops.py` (APK/files/screenshot/record), `api/pairing.py`, `api/device_manager.py`, `api/apps_files.py`.
+- Streaming: `services/scrcpy_stream.py` (scrcpy-server raw H.264 → `/ws/video/{id}` → WebCodecs). Automation: `automation/core.py` + `api/automation_core.py` (`/api/v1/auto/*`).
+- Coverage gate (60 %) is scoped to the V1 core via `backend/.coveragerc` (ADR-007); whole-codebase figure via `--cov-config=.coveragerc.all`.
+- Hardware evidence: `python -m app.tools.hwcheck` (read-only by default). Do not report hardware PASS from simulation.
+
 ## Key patterns
 
 **ADB path resolution** — all service files resolve ADB the same way, going 4 parents up from the service file to the project root:
@@ -81,7 +88,7 @@ Path(__file__).parent.parent.parent.parent / "tools" / "scrcpy" / "scrcpy-win64-
 
 **Persistent ADB shell** (`adb_control.py`) — one `subprocess.Popen` shell process is kept alive per device address. Commands are written to stdin. This is for low-latency control (tap/swipe/key) — much faster than spawning `adb shell` per command. The shell is auto-respawned if it dies.
 
-**Database** — SQLite via `aiosqlite` at `backend/mirrorhub.db`. No migration framework. If you add a column, delete `mirrorhub.db` and restart (SQLAlchemy recreates all tables on startup via `Base.metadata.create_all`). Also delete `__pycache__` to avoid stale compiled models.
+**Database / user data (ADR-005)** — SQLite via `aiosqlite` at `%APPDATA%\Mirrorhub\mirrorhub.db` (override `MIRRORHUB_DATA_DIR`). All paths come from `app/core/runtime_paths.py`. A legacy `backend/mirrorhub.db` is COPIED once (never moved/deleted) by `app/core/data_migration.py`. New columns: add to the model AND to `REQUIRED_COLUMNS` in `app/migration.py` (auto `ALTER TABLE` after a backup). Never instruct anyone to delete the DB. Tests set `MIRRORHUB_DATA_DIR` to a temp dir in `tests/conftest.py`.
 
 **Frontend in App Mode** — FastAPI serves `frontend/dist/` as static files. The catch-all route `/{full_path:path}` returns `index.html` for React Router. In Dev Mode, Vite's proxy handles `/api` and `/ws` routing to the backend.
 

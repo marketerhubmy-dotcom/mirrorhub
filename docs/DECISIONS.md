@@ -23,8 +23,20 @@
 - `LoopbackGuardMiddleware` (ASGI, merangkumi WS + REST): `Host` mesti loopback (anti DNS-rebinding); `Origin` untuk WS dan kaedah bukan-selamat mesti loopback atau disenaraikan dalam `CORS_ORIGINS`. CORS `*` + credentials dibuang.
 - Token sesi **tidak** digunakan: ancaman sebenar ialah halaman web dalam pelayar pengguna; proses tempatan lain sudah boleh menjalankan `adb` sendiri. `/ws/stream` (ejen Android) tidak dilindungi Origin kerana klien bukan pelayar — diterima kerana Origin tiada = dibenarkan; ejen jauh memerlukan reka bentuk auth tersendiri (Fasa 07).
 
-## ADR-005 — Data pengguna di `%APPDATA%\Mirrorhub`
+## ADR-005 — Data pengguna di `%APPDATA%\Mirrorhub` (DILAKSANAKAN)
 - DB, log, upload, backup dipindahkan ke `%APPDATA%\Mirrorhub` (override `MIRRORHUB_DATA_DIR`). Migrasi: salin DB sedia ada **dengan backup**, tidak pernah padam. Arahan "delete mirrorhub.db" dibuang daripada dokumentasi.
 
 ## ADR-006 — Binari pihak ketiga
 - `tools/scrcpy/` dikeluarkan daripada git; pemasang akan membundel binari hanya selepas semakan lesen (scrcpy Apache-2.0; ADB — Android SDK terms; FFmpeg — LGPL/GPL mengikut build; libusb LGPL-2.1; SDL3 zlib). Dokumen NOTICE akan disertakan.
+
+## ADR-007 — Skop gate liputan: teras V1 (60 %), seluruh kod dilaporkan berasingan
+- **Konteks:** 10.6k pernyataan; ~6.4k ialah modul pra-V1 (TikTok/YT, workflows, vision, content, campaign, orchestrator, agents) dengan liputan ~11 %. Mencapai 60 % merata memerlukan menguji jalur automasi UI aplikasi pihak ketiga yang tidak boleh disahkan tanpa akaun/telefon.
+- **Keputusan:** gate `--cov-fail-under=60` dikira atas **teras V1** (`backend/.coveragerc` menyenaraikan pengecualian secara eksplisit). Angka seluruh kod dikira dengan `.coveragerc.all` dan dilaporkan dalam QA_MATRIX (46 %), bukan disembunyikan. Pengecualian tidak menambah liputan modul yang dikecualikan; ia hanya mengasingkan apa yang diperakui.
+- **Akibat:** modul lanjutan kekal berisiko (K11). Memasukkannya semula ke gate ialah kerja berasingan.
+
+## ADR-008 — Identiti peranti: nombor siri perkakasan
+- `ro.serialno` menjadi kunci identiti (`devices.hw_serial`); `adb_address` ialah laluan semasa (USB diutamakan, WiFi sandaran). Satu telefon = satu baris walaupun USB dan WiFi serentak. `device_id` kekal `uuid5(DNS, adb_serial)` untuk rekod lama (serasi ke belakang) dan `uuid5(DNS, hw_serial)` untuk rekod baharu.
+- Rekod lama tanpa `hw_serial` dipadankan melalui `adb_address`; nama pengguna tidak ditimpa.
+
+## ADR-009 — Teras automasi umum berasingan daripada modul TikTok/YT
+- `app/automation/core.py` (langkah tervalidasi, selari antara peranti, retry/timeout/batal, eksklusif per peranti, `Driver` boleh disuntik untuk ujian). Aktuasi hanya melalui `adb_control`/`device_ops` (tiada rentetan shell mentah). Modul lama dikekalkan di *Lanjutan* dan `automation_runner` dibaiki (injeksi teks).

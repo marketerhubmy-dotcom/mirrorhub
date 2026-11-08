@@ -57,7 +57,7 @@ This is the first stable production release of MirrorHub.
 
 - Added 7 indexes on hot query columns in campaign tables (see `docs/AUDIT_1.0.md` §4.1)
 - `CampaignJob.device_id` changed from `default=""` to `nullable=True`
-- **Action required if upgrading:** delete `backend/mirrorhub.db` and restart to apply schema changes
+- **Upgrading:** nothing to delete. Schema changes are applied automatically with a backup (see RELEASE.md, ADR-005). *(The old instruction to delete `mirrorhub.db` is obsolete and must not be followed.)*
 
 ### Included Releases
 
@@ -80,7 +80,7 @@ This release includes all prior incremental releases:
 ## Upgrade from 0.8 to 1.0
 
 1. Pull latest code
-2. Delete `backend/mirrorhub.db` (schema changed — indexes, nullable device_id)
+2. ~~Delete `backend/mirrorhub.db`~~ — obsolete; do NOT delete the database. Start the app; missing columns are added automatically after a backup.
 3. Run `start.bat` → Dev Mode to reinstall packages + rebuild frontend
 4. Copy your `backend/.env` — it is not modified by the upgrade
 

@@ -27,9 +27,9 @@ Prasyarat pembangun sahaja: Python venv `backend\.venv` (+ `pip install -r requi
 
 ## Pengesahan sebelum keluaran (keadaan semasa)
 Lihat `docs/QA_MATRIX.md`. Ringkasan:
-- Ujian backend: **457 lulus, 14 dikuarantin (docs/TEST_QUARANTINE.md)**, gate liputan 60 % (skop teras V1) = **75 %**; keseluruhan kod = 46 %.
-- Pemasang: 18/18 smoke pada mesin pembangun. **Windows bersih: NOT TESTED.**
-- Perkakasan: strim, nyahkod, maklumat, tangkapan, fail, automasi baca-sahaja = PASS pada 2 telefon (Pixel 6, Redmi). Kawalan input, kehilangan sambungan, 4+ telefon, soak = **NOT TESTED** (`docs/HARDWARE_VALIDATION.md`).
+- Ujian backend: **465 lulus, 14 dikuarantin (docs/TEST_QUARANTINE.md)**, gate liputan 60 % (skop teras V1) = **72.9 %**; keseluruhan kod = 46 %.
+- Pemasang: smoke 18/18 (normal) dan 19/19 (profil terpencil) pada mesin pembangun. **Windows bersih: BLOCKED** (Windows Home, tiada VM/Sandbox).
+- Perkakasan (`docs/HARDWARE_VALIDATION.md`): PASS pada Pixel 6 — kawalan input melalui Wall (Home/Back/swipe/tap/taip), reconnect, APK, fail 200 MB (SHA sama), rakaman; PASS pada kedua — strim serentak, info, fail. **BLOCKED**: input dan pemasangan APK pada Redmi (tetapan keselamatan Xiaomi), 4+ telefon, cabut kabel, soak 8 j (telefon terputus), Windows bersih. **Desktop V1 BELUM memenuhi acceptance criteria penuh.**
 
 ## Perkara menunggu pemilik sebelum pengedaran awam
 1. Semakan lesen redistribusi `adb` (Android SDK terms) dan konfigurasi binaan FFmpeg (`packaging/THIRD_PARTY_NOTICES.txt`).

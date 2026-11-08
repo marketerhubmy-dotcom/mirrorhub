@@ -22,3 +22,7 @@
 | K18 | Penghentian proses skrip `asyncio.run` menunjukkan ResourceWarning "unclosed transport" pada Windows | Hanya skrip CLI; tiada kesan pada aplikasi |
 | K19 | Input melalui `adb shell` berterusan: tiada pengakuan ralat per arahan (hanya kegagalan hantar) | Terbuka; kawalan melalui soket scrcpy ditangguh (ADR-002) |
 | K20 | Hanya APK tunggal; `.apks/.xapk` tidak disokong; muat turun folder tidak disokong | Terbuka |
+| K21 | Xiaomi/HyperOS menyekat input & pemasangan USB sehingga *USB debugging (Security settings)* / *Install via USB* dihidupkan | **Dikesan dan dilaporkan dalam UI** (`input_state`, mesej tile, mesej APK); tidak boleh dibaiki oleh aplikasi (tetapan keselamatan pemilik) |
+| K22 | Peranti WiFi bersiri mDNS tidak disambung semula selepas terputus | **DIBETULKAN** (ditemui pada perkakasan 2026-11-08) |
+| K23 | Kebocoran memori `permessage-deflate` pada setiap soket WS (~110 KB) | **DIBETULKAN** (ditemui melalui soak churn simulasi) |
+| K24 | Soak telefon sebenar menunjukkan banyak reconnect klien semasa Redmi tidur (14–29 / 30 s) | Terbuka — belum didiagnosis; ulang bila telefon tersedia (alat soak mencetak sampel ralat) |

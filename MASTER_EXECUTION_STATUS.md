@@ -16,6 +16,9 @@ Dikemas kini: 2026-11-08 · Branch: `dev/desktop-v1` (dipush ke `origin`) · `ma
 
 Ujian: backend 457 lulus / 14 dikuarantin; liputan teras 75.3 % (gate 60 %), seluruh kod 46 %; frontend `tsc` + `build` lulus.
 
+## Kemas kini pengesahan perkakasan (2026-11-08)
+Lihat `docs/HARDWARE_VALIDATION.md`: Pixel 6 lulus kawalan input, reconnect, APK, fail; Redmi disekat oleh tetapan keselamatan Xiaomi (BLOCKED, bukan FAIL). Desktop V1 **belum** melepasi acceptance criteria penuh — Fasa 06–09 dan merge ke `main` ditangguhkan.
+
 ## Blocker / tindakan pemilik
 1. Ujian input pada telefon sebenar (H1/H2) — saya tidak menyentuh skrin telefon anda tanpa kebenaran; jalankan `MirrorHub.exe --hwcheck --allow-input` atau kawal melalui Wall.
 2. Windows bersih untuk smoke installer (H15); tandatangan kod; semakan lesen adb/FFmpeg.

@@ -520,6 +520,14 @@ class StreamManager:
             if self._sessions.get(key) is sess:
                 del self._sessions[key]
 
+    async def stop_device(self, device_id: str) -> None:
+        """Stop every profile session for one device (forgotten / unplugged)."""
+        for key in [k for k in self._sessions if k[0] == device_id]:
+            r = self._reapers.pop(key, None)
+            if r:
+                r.cancel()
+            await self._sessions.pop(key).stop()
+
     async def stop_all(self) -> None:
         for r in self._reapers.values():
             r.cancel()

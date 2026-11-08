@@ -113,7 +113,7 @@ async def safe_migrate_db() -> None:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = runtime_paths.backups_dir() / f"mirrorhub_{ts}_pre-schema-change.db"
     shutil.copy2(str(DB_PATH), str(backup_path))
-    logger.info("📦 DB backup before migration: %s", backup_path)
+    logger.info("DB backup before migration: %s", backup_path)
 
     # ── Pass 2: apply ALTER TABLE statements ─────────────────────────────────
     async with aiosqlite.connect(str(DB_PATH)) as conn:
@@ -121,7 +121,7 @@ async def safe_migrate_db() -> None:
             await conn.execute(
                 f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}"
             )
-            logger.info("✅ Added column: %s.%s (%s)", table, col_name, col_def)
+            logger.info("Added column: %s.%s (%s)", table, col_name, col_def)
         await conn.commit()
 
     logger.info(

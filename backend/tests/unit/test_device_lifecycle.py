@@ -50,7 +50,7 @@ def world(db_engine):
     sf = async_sessionmaker(db_engine, expire_on_commit=False)
     s = Script()
     m = DeviceMonitor(session_factory=sf, lister=s.lister, info_fetcher=s.info, connector=s.connect,
-                      poll_interval=0.01, backoff=(0.01, 0.01, 0.01))
+                      poll_interval=0.01, backoff=(0.01, 0.01, 0.01), info_retries=3, info_retry_delay=0)
     return m, s, sf
 
 
@@ -153,9 +153,9 @@ async def test_reconnect_stops_when_device_returns(world):
     m, s, sf = world
     s.devices = [dev("192.168.1.9:5555")]
     await m.tick(); await settle(m)
+    s.connect_ok = True          # set BEFORE the drop so the first attempt deterministically succeeds
     s.devices = []
     await m.tick(); await settle(m)
-    s.connect_ok = True
     await asyncio.wait_for(asyncio.gather(*list(m._reconnect.values())), 2)
     assert len(s.connects) == 1
 
@@ -265,3 +265,36 @@ def test_helpers():
     assert new_device_id("a:1", "HW") == new_device_id("b:2", "HW")
     assert tags_to_list('["a","b"]') == ["a", "b"]
     assert tags_to_list("not json") == [] and tags_to_list(None) == [] and tags_to_list('{"a":1}') == []
+
+
+@pytest.mark.asyncio
+async def test_info_retries_then_succeeds(world):
+    m, s, sf = world
+    calls = {"n": 0}
+    real = s.info
+
+    async def flaky(serial):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise AdbError("error: closed")
+        return await real(serial)
+
+    m._info = flaky
+    s.devices = [dev("USB123")]
+    await m.tick(); await settle(m)
+    d = (await rows(sf))[0]
+    assert calls["n"] == 3 and d.model == "Pixel 7" and d.last_error == ""
+
+
+@pytest.mark.asyncio
+async def test_startup_reconcile_marks_stale_online_rows_offline(world):
+    m, s, sf = world
+    async with sf() as db:
+        db.add(Device(device_id="ghost", device_name="ghost", adb_address="1.2.3.4:5555", is_online=True))
+        db.add(Device(device_id="live", device_name="live", adb_address="USB123", is_online=True))
+        await db.commit()
+    s.devices = [dev("USB123")]
+    await m.tick(); await settle(m)
+    by = {r.device_id: r for r in await rows(sf)}
+    assert by["ghost"].is_online is False and by["ghost"].state == "offline"
+    assert by["live"].is_online is True

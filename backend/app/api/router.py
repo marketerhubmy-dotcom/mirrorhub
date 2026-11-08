@@ -14,9 +14,16 @@ from app.api.system import router as system_router
 from app.orchestrator.routes import router as orchestrator_router
 from app.agents.routes import router as agents_router
 from app.api.quicklaunch import router as quicklaunch_router
+from app.api.pairing import router as pairing_router
+from app.api.device_manager import router as device_manager_router
+from app.api.apps_files import apps_router, files_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(devices_router)
+api_router.include_router(device_manager_router)
+api_router.include_router(pairing_router)
+api_router.include_router(apps_router)
+api_router.include_router(files_router)
 api_router.include_router(mirror_router)
 api_router.include_router(automation_router)
 api_router.include_router(products_router)

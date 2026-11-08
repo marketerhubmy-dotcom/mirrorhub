@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.models.database import AsyncSessionLocal
-from app.utils.paths import _BACKEND_ROOT
+from app.core import runtime_paths
 from .state_machine import ExecutionState, ExecutionStatus, StepResult, StepState
 from .progress import broadcast_state, capture_screenshot
 from .device_session import set_active_job, clear_active_job
@@ -19,7 +19,7 @@ STEP_HANDLERS: dict = {**ytc.HANDLERS, **ttk.HANDLERS}
 # Steps that park the pipeline for human review (STOP_BEFORE_POST mode)
 _REVIEW_STOP_STEPS = frozenset({"tiktok_pre_publish_check"})
 
-LOG_DIR = _BACKEND_ROOT / "logs"
+LOG_DIR = runtime_paths.logs_dir()
 
 
 def get_state(job_id: int) -> ExecutionState | None:

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from app.websocket.stream import stream_endpoint, view_endpoint
 from app.websocket.control import control_endpoint
 from app.websocket.video import video_endpoint
+from app.websocket.devices import devices_endpoint
 from app.websocket.execution_stream import execution_view_endpoint
 from app.websocket.vision_stream import vision_view_endpoint
 from app.websocket.workflow_stream import workflow_view_endpoint
@@ -62,6 +63,11 @@ async def lifespan(app: FastAPI):
     _agent_task = asyncio.create_task(agent_run_loop())
     logger.info("AI Agent manager started")
 
+    from app.devices.lifecycle import get_monitor
+    _device_monitor = get_monitor()
+    _device_monitor.start()
+    logger.info("Device monitor started")
+
     try:
         yield
     finally:
@@ -72,6 +78,7 @@ async def lifespan(app: FastAPI):
         _monitor_task.cancel()
         stop_agents()
         _agent_task.cancel()
+        await _device_monitor.stop()
         from app.services.scrcpy_stream import stream_manager
         await stream_manager.stop_all()
         logger.info("MirrorHub shutdown complete")
@@ -117,6 +124,12 @@ async def ws_view(device_id: str, ws: WebSocket, db: AsyncSession = Depends(get_
 async def ws_control(device_id: str, ws: WebSocket, db: AsyncSession = Depends(get_db)):
     """Browser → sends touch/keyboard commands → ADB or Android agent."""
     await control_endpoint(device_id, ws, db)
+
+
+@app.websocket("/ws/devices")
+async def ws_devices(ws: WebSocket):
+    """Device lifecycle events (hot-plug, authorization, reconnect, adb outage)."""
+    await devices_endpoint(ws)
 
 
 @app.websocket("/ws/video/{device_id}")

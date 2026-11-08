@@ -100,3 +100,45 @@ async def get_settings():
         "campaign_retry_delay": settings.campaign_retry_delay,
         "log_level": settings.log_level,
     }
+
+
+@router.get("/diagnostics")
+async def diagnostics():
+    """Environment self-check (adb, scrcpy server, data dir, disk, devices). See docs/TROUBLESHOOTING.md."""
+    from app.services.diagnostics import run_checks, summarize
+    checks = await run_checks()
+    return {"overall": summarize(checks), "checks": checks}
+
+
+@router.get("/data")
+async def data_info():
+    """Where user data lives + backups available (ADR-005)."""
+    from app.core import data_migration, runtime_paths
+    return {
+        "data_dir": str(runtime_paths.data_dir()),
+        "database": str(runtime_paths.db_path()),
+        "backups": data_migration.list_backups(),
+    }
+
+
+@router.post("/backup")
+async def create_backup():
+    from app.core import data_migration
+    try:
+        p = data_migration.create_backup("manual")
+    except data_migration.DataError as exc:
+        from fastapi import HTTPException
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "name": p.name}
+
+
+@router.post("/restore/{name}")
+async def stage_restore(name: str):
+    """Stage a restore; it is applied at next start-up after a safety backup of the current DB."""
+    from fastapi import HTTPException
+    from app.core import data_migration
+    try:
+        info = data_migration.stage_restore(name)
+    except data_migration.DataError as exc:
+        raise HTTPException(400, str(exc))
+    return {"ok": True, "staged": info, "message": "Tutup dan buka semula Mirrorhub untuk melengkapkan pemulihan."}

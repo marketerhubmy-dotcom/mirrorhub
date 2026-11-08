@@ -61,10 +61,18 @@ def setup_logging(log_level: str = "INFO") -> None:
     root.addHandler(file_handler)
 
     # ── Console handler ──────────────────────────────────────────────────────
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(level)
-    root.addHandler(console_handler)
+    # Windowed (pythonw / PyInstaller --noconsole) builds have sys.stdout is None; legacy consoles
+    # are cp1252 and would raise UnicodeEncodeError on any non-Latin character in a log line.
+    stream = sys.stdout
+    if stream is not None:
+        try:
+            stream.reconfigure(errors="replace")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        console_handler = logging.StreamHandler(stream)
+        console_handler.setFormatter(formatter)
+        console_handler.setLevel(level)
+        root.addHandler(console_handler)
 
     # Quieten noisy third-party loggers
     for name in _NOISY_LOGGERS:

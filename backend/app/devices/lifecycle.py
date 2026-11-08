@@ -59,6 +59,8 @@ class DeviceMonitor:
         connector: Callable[[str], Awaitable[tuple[bool, str]]] | None = None,
         poll_interval: float = 2.0,
         backoff: tuple[float, ...] = RECONNECT_BACKOFF_S,
+        info_retries: int = 3,
+        info_retry_delay: float = 1.5,
     ):
         if session_factory is None:
             from app.models.database import AsyncSessionLocal
@@ -72,6 +74,9 @@ class DeviceMonitor:
         self._connect = connector or adb_client.connect
         self.poll_interval = poll_interval
         self.backoff = backoff
+        self.info_retries = info_retries
+        self.info_retry_delay = info_retry_delay
+        self._reconciled = False
 
         self.known: dict[str, AdbDevice] = {}
         self.hw_of: dict[str, str] = {}              # adb serial -> hardware serial
@@ -173,6 +178,9 @@ class DeviceMonitor:
             self._emit(type="adb", ok=True, message="ADB pulih.")
 
         current = {d.serial: d for d in devices}
+        if not self._reconciled:
+            self._reconciled = True
+            await self._reconcile_startup(current)
 
         for serial, dev in current.items():
             prev = self.known.get(serial)
@@ -192,6 +200,22 @@ class DeviceMonitor:
 
         self.known = current
         self._first_tick_done.set()
+
+    async def _reconcile_startup(self, present: dict[str, AdbDevice]) -> None:
+        """Rows left 'online' by a previous run (crash, phone unplugged while closed) must not stay online."""
+        async with self._sf() as db:
+            rows = (await db.execute(select(Device).where(Device.is_online.is_(True)))).scalars().all()
+            changed = 0
+            for row in rows:
+                if row.adb_address not in present:
+                    row.is_online = False
+                    row.state = "offline"
+                    row.last_error = "Tidak disambungkan semasa Mirrorhub dimulakan."
+                    changed += 1
+            if changed:
+                await db.commit()
+        if changed:
+            logger.info("startup reconcile: %d stale online device(s) marked offline", changed)
 
     def _adb_failed(self, msg: str) -> None:
         if self.adb_ok or msg != self.last_error:
@@ -249,11 +273,16 @@ class DeviceMonitor:
     async def _on_online(self, dev: AdbDevice) -> None:
         info: DeviceInfo | None = None
         err = ""
-        try:
-            info = await self._info(dev.serial)
-        except Exception as exc:  # device up but shell not answering yet – still register it
-            err = f"Maklumat peranti tidak dapat dibaca: {exc}"
-            logger.warning("info fetch failed for %s: %s", dev.serial, exc)
+        for attempt in range(1, self.info_retries + 1):
+            try:
+                info = await self._info(dev.serial)
+                err = ""
+                break
+            except Exception as exc:  # freshly attached devices often refuse the first shell
+                err = f"Maklumat peranti tidak dapat dibaca: {exc}"
+                logger.warning("info fetch %d/%d failed for %s: %s", attempt, self.info_retries, dev.serial, exc)
+                if attempt < self.info_retries:
+                    await asyncio.sleep(self.info_retry_delay)
         hw = (info.hw_serial if info and info.hw_serial else None)
         if hw:
             self.hw_of[dev.serial] = hw

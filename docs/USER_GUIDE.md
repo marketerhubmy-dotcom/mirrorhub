@@ -1,5 +1,7 @@
 # Panduan Pengguna Mirrorhub Desktop V1
 
+> Mula pantas pemasangan dan sambungan: `docs/SETUP_GUIDE.md`. Penyelesaian masalah: `docs/TROUBLESHOOTING.md`.
+
 ## 1. Pemasangan
 1. Jalankan `Mirrorhub-Setup-1.0.0.exe` (tidak perlu hak admin; dipasang untuk pengguna semasa).
 2. Pilih folder (lalai: `%LOCALAPPDATA%\Programs\Mirrorhub`). Tandakan *Create a Desktop shortcut* jika mahu.

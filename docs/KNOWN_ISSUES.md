@@ -25,4 +25,7 @@
 | K21 | Xiaomi/HyperOS menyekat input & pemasangan USB sehingga *USB debugging (Security settings)* / *Install via USB* dihidupkan | **Dikesan dan dilaporkan dalam UI** (`input_state`, mesej tile, mesej APK); tidak boleh dibaiki oleh aplikasi (tetapan keselamatan pemilik) |
 | K22 | Peranti WiFi bersiri mDNS tidak disambung semula selepas terputus | **DIBETULKAN** (ditemui pada perkakasan 2026-11-08) |
 | K23 | Kebocoran memori `permessage-deflate` pada setiap soket WS (~110 KB) | **DIBETULKAN** (ditemui melalui soak churn simulasi) |
-| K24 | Soak telefon sebenar menunjukkan banyak reconnect klien semasa Redmi tidur (14–29 / 30 s) | Terbuka — belum didiagnosis; ulang bila telefon tersedia (alat soak mencetak sampel ralat) |
+| K24 | Soak telefon sebenar: banyak reconnect klien / soket video terputus | **DIBETULKAN** — punca: dua penulis serentak pada soket (`AssertionError` dalam `websockets._drain_helper`); penulis berkunci + ujian regresi; disahkan pada Pixel (0 reconnect dalam 25 + 16 min) |
+| K25 | RSS bergerigi (≈ +5.5 MB/min hingga ≈ 270 MB) | **DIBETULKAN** — GC berkala 30 s; RSS rata (+4 MB / 16 min) |
+| K26 | Menutup tetingkap ≈ 9 s (hos WebView2) | Terbuka, kosmetik |
+| K27 | Ujian input dilakukan semasa pemilik/automasi menggunakan TikTok/Threads pada Pixel | Dinyatakan dalam laporan E2E; input dihentikan sebaik dikesan |

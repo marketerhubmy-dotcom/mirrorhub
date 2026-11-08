@@ -34,5 +34,16 @@ Hanya tindakan tidak merosakkan: Home/Back/swipe/tap/taip teks ujian dalam bar a
 
 ## Pemerhatian jujur
 - Semasa ujian, Pixel digunakan oleh pemilik/automasi di luar Mirrorhub (aplikasi Threads dan TikTok `SparkActivity` muncul di latar depan). Beberapa Home/Back/swipe saya berselang-seli dengan penggunaan itu; selepas itu input dihentikan. Sila semak TikTok anda tiada sesi yang terganggu.
-- Menutup tetingkap mengambil ≈ 10 s (kini dihadkan 3 s untuk penutupan soket; belum diukur semula pada build akhir — lihat laporan akhir).
+- Menutup tetingkap mengambil ≈ 9.4 s (diukur pada build akhir). Backend sendiri berhenti dalam < 1 s (log); baki masa ialah penutupan hos WebView2. Kosmetik, bukan penghalang.
 - Tetingkap aplikasi yang dipasang tidak dipandu secara automatik (sama backend/frontend, dipandu melalui Chrome).
+
+## Kestabilan (telefon sebenar, aplikasi dipasang)
+| Ujian | Hasil |
+|---|---|
+| Soak 25 min (sebelum pembaikan GC): 1 telefon, strim `normal`, 13 508 bingkai | **PASS** strim: 0 reconnect, 0 ralat, handle 514→516, thread 9→9. RSS bergerigi (+5.5 MB/min sehingga ≈ 270 MB lalu jatuh ke ≈ 212 MB): sampah kitaran objek asyncio yang lambat dikutip |
+| Pembaikan: `gc.collect()` berkala (30 s) dalam backend | |
+| Soak 16 min (selepas pembaikan, build akhir dipasang melalui **kemas kini** di atas aplikasi yang sedang berjalan) | **PASS**: 0 reconnect, 0 ralat, RSS **199 → 203 MB (+4.1, rata)**, handle 517→514, thread 10→11 |
+Soak 8 jam: **tidak dijalankan** (lihat MULTI_DEVICE/pending). Hasil 41 minit gabungan tidak dilabel sebagai soak 8 jam.
+
+## Kemas kini di atas aplikasi yang sedang berjalan
+Pemasang menutup `MirrorHub.exe` yang berjalan, menggantikan fail (hash binari dipasang = hash binaan), data `%APPDATA%\Mirrorhub` utuh, aplikasi dilancar semula dengan peranti dikesan sendiri. **PASS**.

@@ -35,3 +35,12 @@ Legenda: PASS / FAIL / NOT TESTED. **PASS (HW)** = telefon sebenar. **PASS (sim)
 | 14 | Pairing | Pair/connect/discover WiFi | PASS (sim: validasi + tafsiran) · telefon sudah ada sambungan mDNS, **pairing baharu NOT TESTED** | H12 | — |
 | 15 | Virtual | 2 emulator | NOT TESTED | tiada Android SDK/JDK | — |
 | 16 | Remote/Cloud/Billing/Ops | semua | NOT TESTED / tidak dimulakan | di luar skop V1 | — |
+
+## Kemas kini 2026-11-08 (keluaran satu telefon)
+| # | Item | Status | Bukti |
+|---|---|---|---|
+| S1 | E2E dalam aplikasi dipasang: install → launch → connect → mirror → tap → swipe → type → screenshot → rakam → fail → APK → automasi → reconnect → tutup → buka semula → tetapan kekal | **PASS (HW, Pixel 6) 18/18** | `docs/E2E_SINGLE_DEVICE_REPORT.md` |
+| S2 | Soak telefon sebenar (aplikasi dipasang) 25 min + 16 min, 1 telefon | **PASS** (0 reconnect/ralat; RSS rata selepas GC) — **bukan** soak 8 jam | `soak_installed*.log` |
+| S3 | Kemas kini pemasang di atas aplikasi berjalan | **PASS** | hash binari sama, data utuh |
+| S4 | SINGLE_DEVICE_READY | **YA** | `RELEASE.md` |
+| S5 | MULTI_DEVICE_READY | **TIDAK (belum diuji)** | `HARDWARE_VALIDATION.md` |

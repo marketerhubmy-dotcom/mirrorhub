@@ -25,11 +25,19 @@ Prasyarat pembangun sahaja: Python venv `backend\.venv` (+ `pip install -r requi
 - Backup/Restore: Sistem → Cipta backup / Pulihkan (restore dijadualkan, dilaksanakan semasa mula, backup keselamatan dahulu).
 - Skema: lajur baharu ditambah selepas backup `pre-schema-change`.
 
-## Pengesahan sebelum keluaran (keadaan semasa)
-Lihat `docs/QA_MATRIX.md`. Ringkasan:
-- Ujian backend: **465 lulus, 14 dikuarantin (docs/TEST_QUARANTINE.md)**, gate liputan 60 % (skop teras V1) = **72.9 %**; keseluruhan kod = 46 %.
-- Pemasang: smoke 18/18 (normal) dan 19/19 (profil terpencil) pada mesin pembangun. **Windows bersih: BLOCKED** (Windows Home, tiada VM/Sandbox).
-- Perkakasan (`docs/HARDWARE_VALIDATION.md`): PASS pada Pixel 6 — kawalan input melalui Wall (Home/Back/swipe/tap/taip), reconnect, APK, fail 200 MB (SHA sama), rakaman; PASS pada kedua — strim serentak, info, fail. **BLOCKED**: input dan pemasangan APK pada Redmi (tetapan keselamatan Xiaomi), 4+ telefon, cabut kabel, soak 8 j (telefon terputus), Windows bersih. **Desktop V1 BELUM memenuhi acceptance criteria penuh.**
+## Status keluaran (2026-11-08)
+| Status | Keputusan | Asas |
+|---|---|---|
+| **SINGLE_DEVICE_READY** | **YA** — Pixel 6 (rujukan) | E2E 18/18 dalam aplikasi yang dipasang (`docs/E2E_SINGLE_DEVICE_REPORT.md`); soak 25 + 16 min tanpa reconnect/ralat, memori rata; 484 ujian lulus; smoke pemasang 18/18 dan 19/19; kemas kini di atas aplikasi berjalan lulus; tiada blocker kritikal terbuka |
+| **MULTI_DEVICE_READY** | **TIDAK** (belum diuji) | 4+ telefon, input pada Redmi (disekat tetapan Xiaomi), soak 8 jam, cabut kabel fizikal, Windows bersih — `docs/HARDWARE_VALIDATION.md` |
+
+Cakupan SINGLE_DEVICE_READY: telefon jenis Pixel/AOSP yang tidak menyekat input USB. Telefon Xiaomi/HyperOS memerlukan "USB debugging (Security settings)" dan "Install via USB" (dikesan dan dipaparkan oleh aplikasi). Pemasang belum ditandatangani (SmartScreen akan memberi amaran).
+
+## Ringkasan pengesahan
+- Backend: **484 lulus, 14 dikuarantin (docs/TEST_QUARANTINE.md)**, liputan teras 73.6 % (gate 60 %), seluruh kod ≈ 46 %.
+- Pemasang: smoke 18/18 (normal) dan 19/19 (profil terpencil); kemas kini-di-atas-berjalan PASS. Windows bersih: BLOCKED (Windows Home).
+- Perkakasan: lihat `docs/E2E_SINGLE_DEVICE_REPORT.md` dan `docs/HARDWARE_VALIDATION.md`.
+- Checksum pemasang: `dist/SHA256SUMS.txt`.
 
 ## Perkara menunggu pemilik sebelum pengedaran awam
 1. Semakan lesen redistribusi `adb` (Android SDK terms) dan konfigurasi binaan FFmpeg (`packaging/THIRD_PARTY_NOTICES.txt`).

@@ -32,6 +32,8 @@ if (-not $SkipTests) {
 Step 'frontend build'
 Push-Location frontend
 npm ci --no-audit --no-fund 2>&1 | Select-Object -Last 2
+npm test 2>&1 | Select-Object -Last 6
+if ($LASTEXITCODE -ne 0) { throw 'frontend tests failed' }
 npm run build 2>&1 | Select-Object -Last 4
 if ($LASTEXITCODE -ne 0) { throw 'frontend build failed' }
 Pop-Location

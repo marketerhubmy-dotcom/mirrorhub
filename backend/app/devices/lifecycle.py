@@ -357,10 +357,18 @@ class DeviceMonitor:
                 row.last_error = "Sambungan terputus."
             await db.commit()
         self._emit(type="changed")
-        if prev.transport == "wifi" and not alt and prev.serial not in self._suppress and prev.state == "device":
+        if prev.transport == "wifi" and not alt and prev.serial not in self._suppress and prev.state == "device" and self._auto_reconnect_enabled():
             self._start_reconnect(prev.serial)
 
     # ── wireless auto-reconnect ───────────────────────────────────────────────
+
+    @staticmethod
+    def _auto_reconnect_enabled() -> bool:
+        try:
+            from app.services import preferences
+            return bool(preferences.get("auto_reconnect"))
+        except Exception:
+            return True
 
     def _start_reconnect(self, serial: str) -> None:
         if serial in self._reconnect or not adb_client.is_wifi_reconnectable(serial):

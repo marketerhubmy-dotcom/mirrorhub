@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Page } from '../components/AppShell'
 import { Button, Card, ConfirmDialog, PageHeader, Pill, useAction } from '../components/ui'
 import { fmtBytes, systemApi2, type BackupInfo, type DiagCheck } from '../services/deviceApi'
+import { usePreferences } from '../hooks/usePreferences'
+import { inputCls } from '../components/ui'
 
 const TONE: Record<string, string> = {
   PASS: 'text-emerald-400', WARN: 'text-amber-300', FAIL: 'text-red-400', INFO: 'text-sky-300',
@@ -9,6 +11,7 @@ const TONE: Record<string, string> = {
 
 export default function SystemPage() {
   const { busy, run } = useAction()
+  const { prefs, update: updatePrefs } = usePreferences()
   const [diag, setDiag] = useState<{ overall: string; checks: DiagCheck[] } | null>(null)
   const [data, setData] = useState<{ data_dir: string; database: string; backups: BackupInfo[] } | null>(null)
   const [restore, setRestore] = useState<string | null>(null)
@@ -21,6 +24,35 @@ export default function SystemPage() {
   return (
     <Page>
       <PageHeader title="Sistem" subtitle="Diagnostik persekitaran, lokasi data pengguna, backup dan pemulihan." />
+
+      {prefs && (
+        <Card className="p-5 mb-5">
+          <h2 className="font-semibold text-white mb-1">Keutamaan</h2>
+          <p className="text-xs text-gray-500 mb-4">Disimpan dalam folder data anda dan kekal selepas aplikasi ditutup atau dikemas kini.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex items-center gap-3 text-sm text-gray-200">
+              <input type="checkbox" checked={prefs.auto_reconnect} onChange={(e) => updatePrefs({ auto_reconnect: e.target.checked })} />
+              Sambung semula WiFi secara automatik
+            </label>
+            <label className="flex items-center gap-3 text-sm text-gray-200">
+              <input type="checkbox" checked={prefs.wall_show_offline} onChange={(e) => updatePrefs({ wall_show_offline: e.target.checked })} />
+              Device Wall: tunjuk peranti offline
+            </label>
+            <label className="text-sm text-gray-200">Kualiti Wall
+              <select className={`${inputCls} mt-1`} value={prefs.wall_quality} onChange={(e) => updatePrefs({ wall_quality: e.target.value as typeof prefs.wall_quality })}>
+                <option value="auto">Auto (thumbnail jika &gt; 4 peranti)</option>
+                <option value="thumb">Rendah (hemat CPU)</option>
+                <option value="normal">Sederhana</option>
+                <option value="focus">Tinggi</option>
+              </select>
+            </label>
+            <label className="text-sm text-gray-200">Tempoh rakaman skrin (saat, maks 180)
+              <input className={`${inputCls} mt-1`} type="number" min={5} max={180} value={prefs.record_seconds}
+                onChange={(e) => { const n = Number(e.target.value); if (n >= 5 && n <= 180) updatePrefs({ record_seconds: n }) }} />
+            </label>
+          </div>
+        </Card>
+      )}
 
       <Card className="p-5 mb-5">
         <div className="flex items-center justify-between mb-4">

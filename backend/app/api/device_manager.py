@@ -141,7 +141,9 @@ async def take_screenshot(device: Device = Depends(get_online_device)):
 
 
 @router.post("/devices/{device_id}/record/start")
-async def record_start(device: Device = Depends(get_online_device), seconds: int = Query(60, ge=5, le=180)):
+async def record_start(device: Device = Depends(get_online_device), seconds: int | None = Query(None, ge=5, le=180)):
+    from app.services import preferences
+    seconds = seconds or int(preferences.get("record_seconds"))   # default comes from the saved preference
     with adb_errors():
         remote = await device_ops.record_start(device.adb_address, seconds)
     return {"ok": True, "remote": remote, "max_seconds": seconds}

@@ -111,6 +111,19 @@ export const filesApi = {
 }
 
 // ── system ────────────────────────────────────────────────────────────────────
+export interface Preferences {
+  wall_layout: 'auto' | 1 | 2 | 4 | 9
+  wall_show_offline: boolean
+  wall_quality: 'auto' | 'thumb' | 'normal' | 'focus'
+  auto_reconnect: boolean
+  record_seconds: number
+}
+export const prefsApi = {
+  get: () => request<Preferences>('/system/preferences'),
+  put: (patch: Partial<Preferences>) =>
+    request<Preferences>('/system/preferences', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }),
+}
+
 export const systemApi2 = {
   diagnostics: () => request<{ overall: string; checks: DiagCheck[] }>('/system/diagnostics'),
   data: () => request<{ data_dir: string; database: string; backups: BackupInfo[] }>('/system/data'),

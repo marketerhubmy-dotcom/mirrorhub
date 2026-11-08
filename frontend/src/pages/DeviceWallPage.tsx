@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { usePreferences } from '../hooks/usePreferences'
 import { Link } from 'react-router-dom'
 import DeviceTile from '../components/DeviceTile'
 import { useDevices } from '../hooks/useDevices'
@@ -26,6 +27,15 @@ export default function DeviceWallPage() {
   const [pausedIds, setPausedIds] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [showOffline, setShowOffline] = useState(false)
+  const { prefs, update: updatePrefs } = usePreferences()
+  const [quality, setQuality] = useState<'auto' | 'thumb' | 'normal' | 'focus'>('auto')
+  useEffect(() => {          // apply saved preferences once they arrive
+    if (!prefs) return
+    setLayout(prefs.wall_layout)
+    setShowOffline(prefs.wall_show_offline)
+    setQuality(prefs.wall_quality)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs === null])
 
   const wallDevices = useMemo(
     () => devices
@@ -38,7 +48,7 @@ export default function DeviceWallPage() {
   const others = focused ? wallDevices.filter((d) => d.device_id !== focused.device_id) : wallDevices
   const cols = columnsFor(layout, wallDevices.length)
   // Many tiles => low-FPS thumbnails; few tiles => smoother "normal" profile.
-  const wallProfile = wallDevices.length > 4 ? 'thumb' : 'normal'
+  const wallProfile = quality !== 'auto' ? quality : wallDevices.length > 4 ? 'thumb' : 'normal'
 
   const togglePause = (id: string) =>
     setPausedIds((prev) => {
@@ -63,7 +73,7 @@ export default function DeviceWallPage() {
           <div className="flex rounded-lg overflow-hidden border border-gray-700" role="group" aria-label="Susun atur">
             {LAYOUTS.map((l) => (
               <button
-                key={String(l)} onClick={() => setLayout(l)} aria-pressed={layout === l}
+                key={String(l)} onClick={() => { setLayout(l); updatePrefs({ wall_layout: l }) }} aria-pressed={layout === l}
                 className={`px-2.5 py-1.5 text-xs ${layout === l ? 'bg-indigo-600' : 'bg-gray-800 hover:bg-gray-700'}`}
               >
                 {l === 'auto' ? 'Auto' : l}
@@ -71,7 +81,7 @@ export default function DeviceWallPage() {
             ))}
           </div>
           <label className="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer">
-            <input type="checkbox" checked={showOffline} onChange={(e) => setShowOffline(e.target.checked)} /> Termasuk offline
+            <input type="checkbox" checked={showOffline} onChange={(e) => { setShowOffline(e.target.checked); updatePrefs({ wall_show_offline: e.target.checked }) }} /> Termasuk offline
           </label>
           <button
             onClick={() => setPausedAll((p) => !p)}

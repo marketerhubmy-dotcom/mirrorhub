@@ -50,13 +50,22 @@ async def video_endpoint(device_id: str, ws: WebSocket, db: AsyncSession) -> Non
     sess.listeners.add(on_state)
     on_state(sess.status())
 
+    # The websockets library allows ONE writer waiting on flow control at a time (`assert waiter is None`
+    # in _drain_helper). Video and status writers used to run concurrently, so a large keyframe filling the
+    # socket buffer killed the connection with AssertionError -> endless client reconnects. Serialize writes.
+    send_lock = asyncio.Lock()
+
     async def send_video() -> None:
         while True:
-            await ws.send_bytes(await viewer.queue.get())
+            au = await viewer.queue.get()
+            async with send_lock:
+                await ws.send_bytes(au)
 
     async def send_status() -> None:
         while True:
-            await ws.send_json(await status_q.get())
+            msg = await status_q.get()
+            async with send_lock:
+                await ws.send_json(msg)
 
     async def drain_client() -> None:
         while True:  # also detects disconnects; clients may send {"type":"ping"}
@@ -64,7 +73,10 @@ async def video_endpoint(device_id: str, ws: WebSocket, db: AsyncSession) -> Non
 
     tasks = [asyncio.create_task(c()) for c in (send_video, send_status, drain_client)]
     try:
-        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for d in done:  # why did the socket end? (client left vs server-side failure)
+            exc = d.exception() if not d.cancelled() else None
+            logger.info("video ws %s/%s ended: %s", device_id[:8], profile, repr(exc) if exc else "task finished", exc_info=exc)
     except WebSocketDisconnect:
         pass
     finally:

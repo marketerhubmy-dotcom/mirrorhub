@@ -167,7 +167,11 @@ def open_window(url: str, backend: Backend | None) -> None:
         import webview
         webview.settings["ALLOW_DOWNLOADS"] = True
         webview.create_window(title="MirrorHub", url=url, width=1360, height=860, min_size=(960, 620), text_select=True)
-        webview.start(debug=False)
+        # private_mode=False + storage_path: keep WebView2 profile (localStorage e.g. automation templates) across runs.
+        from app.core import runtime_paths
+        storage = runtime_paths.data_dir() / "webview"
+        storage.mkdir(exist_ok=True)
+        webview.start(debug=False, private_mode=False, storage_path=str(storage))
     except Exception as exc:  # no WebView2 / pythonnet problem: stay usable
         logging.getLogger(__name__).warning("desktop window unavailable (%s); opening browser", exc)
         import webbrowser

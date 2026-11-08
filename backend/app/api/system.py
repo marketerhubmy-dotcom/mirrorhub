@@ -150,3 +150,41 @@ async def metrics():
     from app.services.metrics import process_metrics
     from app.services.scrcpy_stream import stream_manager
     return {"process": process_metrics(), "streams": stream_manager.stats()}
+
+
+@router.get("/preferences")
+async def get_preferences():
+    """User preferences persisted in the data dir (survive restarts/updates)."""
+    from app.services import preferences
+    return preferences.load()
+
+
+@router.put("/preferences")
+async def put_preferences(patch: dict):
+    from fastapi import HTTPException
+    from app.services import preferences
+    try:
+        return preferences.update(patch)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+# Developer-only leak hunting: enabled solely when the process was started with MH_TRACE=1 (never in the installed app).
+import os as _os
+if _os.environ.get("MH_TRACE"):
+    import gc as _gc
+    import tracemalloc as _tm
+    _tm.start(15)
+    _base: dict = {}
+
+    @router.get("/_mem")
+    async def _mem(reset: bool = False, gc: bool = True):
+        if gc:
+            _gc.collect()
+        snap = _tm.take_snapshot()
+        if reset or "s" not in _base:
+            _base["s"] = snap
+            return {"reset": True}
+        top = snap.compare_to(_base["s"], "traceback")[:8]
+        return [{"diff_kb": round(s.size_diff / 1024, 1), "count": s.count_diff,
+                 "where": [str(f) for f in s.traceback.format()[-6:]]} for s in top]

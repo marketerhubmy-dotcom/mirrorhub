@@ -191,3 +191,13 @@ def test_control_ws_reports_blocked_input_on_connect(client, monkeypatch):
     with client.websocket_connect(f"/ws/control/{did}", headers=OK) as ws:
         msg = ws.receive_json()
     assert msg["error"] == "input_blocked" and "Security settings" in msg["detail"]
+
+
+def test_preferences_api_roundtrip_and_validation(client):
+    assert client.get("/api/v1/system/preferences").json()["auto_reconnect"] is True
+    r = client.put("/api/v1/system/preferences", json={"wall_layout": 4, "record_seconds": 20})
+    assert r.status_code == 200 and r.json()["wall_layout"] == 4
+    assert client.get("/api/v1/system/preferences").json()["record_seconds"] == 20
+    assert client.put("/api/v1/system/preferences", json={"wall_layout": 7}).status_code == 400
+    assert client.put("/api/v1/system/preferences", json={"bogus": 1}).status_code == 400
+    assert client.get("/api/v1/system/preferences").json()["wall_layout"] == 4      # failed update changed nothing

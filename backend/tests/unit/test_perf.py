@@ -535,3 +535,32 @@ async def test_brief_activity_blip_after_idle_is_not_degraded():
     await advance(c, clk, 1, sessions=[s], frames=11, nbytes=80_000)        # 5 fps blip, 40 KB/s
     row = c.device_rows([{"device_id": "d1", "name": "P", "transport": "wifi", "state": "online", "is_online": True}])[0]
     assert row["health"] == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_device_names_that_are_addresses_are_masked_in_the_report():
+    """Real finding: legacy devices are named after their IP:port; the exported summary leaked it."""
+    c, clk = make_collector([])
+    await c.tick()
+    rows = c.device_rows([{"device_id": "abcdef012345", "name": "192.168.1.109:32771", "transport": "wifi", "state": "offline",
+                           "is_online": False, "last_error": "x"}])
+    import json
+    rep = perf_report.build_report(c, rows, {"version": "v", "ok": True, "error": ""}, [])
+    blob = json.dumps(rep)
+    assert "192.168.1.109" not in blob and "192.168.x.x" in blob
+    full = json.dumps(perf_report.build_report(c, rows, {"version": "v", "ok": True, "error": ""}, [], include_identifiers=True))
+    assert "192.168.1.109" in full
+
+
+@pytest.mark.asyncio
+async def test_device_reconnect_total_survives_session_replacement():
+    s = FakeSess()
+    sessions = [s]
+    c, clk = make_collector(sessions)
+    await c.tick()
+    s.reconnects = 2
+    await advance(c, clk, 1)
+    sessions[:] = [FakeSess()]               # transport changed -> a brand new session object with a zero counter
+    await advance(c, clk, 2)
+    row = c.device_rows([{"device_id": "d1", "name": "P", "transport": "wifi", "state": "online", "is_online": True}])[0]
+    assert row["reconnects"] == 2

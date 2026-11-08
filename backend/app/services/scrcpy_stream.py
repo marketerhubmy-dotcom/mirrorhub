@@ -429,8 +429,8 @@ class StreamSession:
     def _set(self, state: str, error: str = "") -> None:
         prev = self.state
         self.state, self.error = state, error
-        if state == "reconnecting":
-            self.reconnects += 1
+        if state == "reconnecting" and prev != "reconnecting":
+            self.reconnects += 1          # one per OUTAGE episode, not one per retry attempt inside it
         if error:
             self.last_error_msg, self.last_error_wall = error, time.time()
         if state != prev or error:

@@ -223,6 +223,7 @@ class PerfCollector:
         self._state_since: dict[tuple[str, str], tuple[str, float]] = {}
         self._reconnect_ts: dict[str, deque] = {}        # device_id -> timestamps of reconnects
         self._reconnect_total = 0
+        self._dev_reconnects: dict[str, int] = {}          # cumulative per device (survives session replacement)
         self._last_reconnect_seen: dict[tuple[str, str], int] = {}
         self.client_stats: dict[str, dict] = {}
         self.alerts: dict[tuple[str, str], AlertState] = {}
@@ -311,6 +312,7 @@ class PerfCollector:
                 n = s.reconnects - seen
                 reconnect_delta += n
                 self._reconnect_total += n
+                self._dev_reconnects[s.device_id] = self._dev_reconnects.get(s.device_id, 0) + n
                 q = self._reconnect_ts.setdefault(s.device_id, deque(maxlen=200))
                 q.extend([now] * n)
             self._last_reconnect_seen[key] = s.reconnects
@@ -530,7 +532,7 @@ class PerfCollector:
                 "frames_sent": sum(v["frames"] for v in views), "frames_dropped_server": sum(v["dropped_server"] for v in views),
                 "client": client,
                 "startup_s": primary["startup_s"] if primary else None,
-                "reconnects": sum(v["reconnects"] for v in views), "reconnects_recent": recent,
+                "reconnects": self._dev_reconnects.get(d["device_id"], 0), "reconnects_recent": recent,
                 "last_error": next((v["last_error"] for v in views if v["last_error"]), None) or (d.get("last_error") or None),
                 "uptime_s": primary["uptime_s"] if primary else None,
                 "battery": d.get("battery") if d["is_online"] else None,

@@ -158,3 +158,16 @@ def test_control_commands_are_bound_to_their_own_device_only(monkeypatch):
     assert [s for s, *_ in sent] == ["SER-A", "SER-B", "SER-A"]
     with pytest.raises(Exception):
         check_binding("id-A", {"type": "tap", "x": 0.1, "y": 0.2, "device_id": "id-B"})     # cross-device claim rejected
+
+
+@pytest.mark.asyncio
+async def test_one_outage_counts_as_one_reconnect_not_one_per_retry():
+    """Real-hardware finding: a single adb transport reset (5 retries in 8 s) tripped the 'reconnect loop' alert."""
+    s = ss.StreamSession(device_id="d", serial="X", profile="normal")
+    s._set("streaming")
+    for _ in range(5):                       # five retry attempts inside ONE outage
+        s._set("reconnecting", "adb push failed")
+    assert s.reconnects == 1
+    s._set("streaming")
+    s._set("reconnecting")                   # a second, separate outage
+    assert s.reconnects == 2

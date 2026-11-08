@@ -79,9 +79,10 @@ def build_report(collector, device_rows: list[dict], adb_info: dict, checks: lis
                                "resolution", "bitrate_kbps", "activity", "frames_sent", "frames_dropped_server", "client",
                                "startup_s", "reconnects", "reconnects_recent", "uptime_s", "battery",
                                "storage_free_mb", "storage_total_mb", "na")}
+        d["name"] = ident(r["name"])                     # device names are free text and may be an IP:port
         d["last_error"] = ident(r["last_error"])
         d["streams"] = [{k: (ident(v) if k == "last_error" else v) for k, v in s.items() if k != "state_since"} for s in r["streams"]]
-        d["summary"] = explain(r)
+        d["summary"] = ident(explain(r))
         devices.append(d)
 
     events = []
@@ -99,7 +100,7 @@ def build_report(collector, device_rows: list[dict], adb_info: dict, checks: lis
         "adb": {k: (ident(v) if isinstance(v, str) else v) for k, v in adb_info.items()},
         "overview": {k: ov[k] for k in ("devices", "devices_total", "active_streams", "pc", "process", "fps_avg", "ws", "reconnects", "health")},
         "thresholds": th,
-        "alerts_active": ov["alerts"],
+        "alerts_active": [{**a, "message": ident(a["message"])} for a in ov["alerts"]],
         "alerts_history": [{**a, "time": _iso(a["t"]), "message": ident(a["message"])} for a in list(collector.alert_history)[-50:]],
         "devices": devices,
         "events": events,

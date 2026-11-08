@@ -49,6 +49,18 @@ SCHEMA: dict[str, tuple[Any, Callable[[Any], Any]]] = {
     "wall_quality": ("auto", _choice("auto", "thumb", "normal", "focus")),
     "auto_reconnect": (True, _bool),
     "record_seconds": (60, _int(5, 180)),
+    # Performance dashboard thresholds (docs/PERFORMANCE_DASHBOARD.md)
+    "perf_ram_high_pct": (90, _int(50, 99)),
+    "perf_cpu_high_pct": (90, _int(50, 100)),
+    "perf_cpu_sustain_s": (30, _int(4, 600)),
+    "perf_fps_low": (5, _int(1, 60)),
+    "perf_reconnect_loop_count": (5, _int(2, 50)),
+    "perf_reconnect_window_s": (120, _int(30, 3600)),
+    "perf_startup_slow_s": (10, _int(2, 120)),
+    "perf_max_streams": (8, _int(1, 64)),
+    "perf_rss_growth_mb": (150, _int(20, 4000)),
+    "perf_alerts_enabled": (True, _bool),
+    "perf_alert_cooldown_s": (300, _int(10, 86400)),
 }
 DEFAULTS = {k: d for k, (d, _) in SCHEMA.items()}
 

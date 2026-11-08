@@ -164,6 +164,89 @@ class Viewer:
     dropped: int = 0
 
 
+def _unescape_rbsp(data: bytes) -> bytes:
+    out = bytearray()
+    zeros = 0
+    for b in data:
+        if zeros >= 2 and b == 3:      # emulation prevention byte
+            zeros = 0
+            continue
+        out.append(b)
+        zeros = zeros + 1 if b == 0 else 0
+    return bytes(out)
+
+
+class _Bits:
+    def __init__(self, data: bytes) -> None:
+        self.d, self.i = data, 0
+
+    def u(self, n: int) -> int:
+        v = 0
+        for _ in range(n):
+            byte = self.d[self.i >> 3] if (self.i >> 3) < len(self.d) else 0
+            v = (v << 1) | ((byte >> (7 - (self.i & 7))) & 1)
+            self.i += 1
+        return v
+
+    def ue(self) -> int:
+        zeros = 0
+        while self.u(1) == 0 and zeros < 32:
+            zeros += 1
+        return (1 << zeros) - 1 + self.u(zeros) if zeros else 0
+
+    def se(self) -> int:
+        k = self.ue()
+        return (k + 1) // 2 if k & 1 else -(k // 2)
+
+
+def parse_sps_size(sps_nal: bytes) -> tuple[int, int] | None:
+    """Coded picture width/height (after cropping) from an H.264 SPS NAL (with start code). None if unparsable."""
+    try:
+        body = sps_nal[4:] if sps_nal[:4] == START4 else sps_nal[3:]
+        r = _Bits(_unescape_rbsp(body[1:]))          # skip the NAL header byte
+        profile = r.u(8)
+        r.u(16)                                       # constraint flags + level
+        r.ue()                                        # sps id
+        chroma = 1
+        if profile in (100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135):
+            chroma = r.ue()
+            if chroma == 3:
+                r.u(1)
+            r.ue(); r.ue(); r.u(1)
+            if r.u(1):                                # scaling matrices
+                for i in range(8 if chroma != 3 else 12):
+                    if r.u(1):
+                        last = nxt = 8
+                        for _ in range(16 if i < 6 else 64):
+                            if nxt:
+                                nxt = (last + r.se() + 256) % 256
+                            last = nxt or last
+        r.ue()                                        # log2_max_frame_num
+        poc = r.ue()
+        if poc == 0:
+            r.ue()
+        elif poc == 1:
+            r.u(1); r.se(); r.se()
+            for _ in range(r.ue()):
+                r.se()
+        r.ue(); r.u(1)                                # max_num_ref_frames, gaps
+        w_mbs, h_map = r.ue() + 1, r.ue() + 1
+        frame_mbs_only = r.u(1)
+        if not frame_mbs_only:
+            r.u(1)
+        r.u(1)
+        crop = (0, 0, 0, 0)
+        if r.u(1):
+            crop = (r.ue(), r.ue(), r.ue(), r.ue())
+        sw, sh = (2, 2) if chroma == 1 else (2, 1) if chroma == 2 else (1, 1)
+        cx, cy = sw, sh * (2 - frame_mbs_only)
+        w = w_mbs * 16 - cx * (crop[0] + crop[1])
+        h = (2 - frame_mbs_only) * h_map * 16 - cy * (crop[2] + crop[3])
+        return (w, h) if 16 <= w <= 8192 and 16 <= h <= 8192 else None
+    except Exception:
+        return None
+
+
 class StreamHub:
     """Fan-out of access units; late joiners start from the last keyframe picture.
 
@@ -181,6 +264,11 @@ class StreamHub:
         self.viewers: set[Viewer] = set()
         self.frames = 0
         self.bytes = 0
+        self.width = 0
+        self.height = 0
+        self.first_frame_at = 0.0       # monotonic
+        self.last_frame_at = 0.0
+        self.dropped = 0                # pictures dropped for slow viewers (backpressure)
 
     def subscribe(self) -> Viewer:
         # Room for the whole cached GOP (can be hundreds of pictures) plus live headroom.
@@ -200,6 +288,9 @@ class StreamHub:
             for n in iter_nals(au):
                 if nal_type(n) == NAL_SPS:
                     self.sps = n
+                    size = parse_sps_size(n)
+                    if size:
+                        self.width, self.height = size
                 elif nal_type(n) == NAL_PPS:
                     self.pps = n
         if is_key and not {NAL_SPS, NAL_PPS} <= types:
@@ -210,6 +301,10 @@ class StreamHub:
             return
         self.bytes += len(au)
         self.frames += 1
+        now = time.monotonic()
+        self.last_frame_at = now
+        if not self.first_frame_at:
+            self.first_frame_at = now
         if is_key:
             self._gop, self._gop_bytes = [au], len(au)
         elif self._gop:
@@ -225,6 +320,7 @@ class StreamHub:
         if v.waiting_key:
             if not is_key:
                 v.dropped += 1
+                self.dropped += 1
                 return
             v.waiting_key = False
         try:
@@ -235,6 +331,7 @@ class StreamHub:
                 v.queue.get_nowait()
             v.waiting_key = not is_key
             v.dropped += 1
+            self.dropped += 1
             if is_key:
                 v.queue.put_nowait(au)
 
@@ -320,11 +417,30 @@ class StreamSession:
     _port: int | None = None
     _writer: asyncio.StreamWriter | None = None
     _stop: bool = False
+    # instrumentation (Performance dashboard)
+    requested_at: float = 0.0        # monotonic: first start() request
+    created_wall: float = field(default_factory=time.time)
+    reconnects: int = 0
+    last_error_msg: str = ""
+    last_error_wall: float = 0.0
 
     MAX_RETRIES = 5
 
     def _set(self, state: str, error: str = "") -> None:
+        prev = self.state
         self.state, self.error = state, error
+        if state == "reconnecting":
+            self.reconnects += 1
+        if error:
+            self.last_error_msg, self.last_error_wall = error, time.time()
+        if state != prev or error:
+            try:
+                from app.services import perf_events
+                perf_events.emit("stream", f"{self.profile}: {prev} -> {state}" + (f" ({error[:120]})" if error else ""),
+                                 device_id=self.device_id, level="warn" if error or state in ("failed", "reconnecting") else "info",
+                                 event="state", state=state, profile=self.profile)
+            except Exception:
+                pass
         for cb in list(self.listeners):
             try:
                 cb(self.status())
@@ -335,10 +451,17 @@ class StreamSession:
         return {"event": "state", "state": self.state, "error": self.error,
                 "device_id": self.device_id, "profile": self.profile}
 
+    def startup_seconds(self) -> float | None:
+        if self.requested_at and self.hub.first_frame_at:
+            return round(max(0.0, self.hub.first_frame_at - self.requested_at), 2)
+        return None
+
     def start(self) -> None:
         if self._task and not self._task.done():
             return
         self._stop = False
+        if not self.requested_at:
+            self.requested_at = time.monotonic()
         self._task = asyncio.get_running_loop().create_task(self._run())
 
     async def stop(self) -> None:
@@ -493,6 +616,9 @@ class StreamManager:
     def __init__(self) -> None:
         self._sessions: dict[tuple[str, str], StreamSession] = {}
         self._reapers: dict[tuple[str, str], asyncio.Task] = {}
+
+    def sessions(self) -> list[StreamSession]:
+        return list(self._sessions.values())
 
     def get(self, device_id: str, profile: str) -> StreamSession | None:
         return self._sessions.get((device_id, profile))

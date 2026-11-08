@@ -201,3 +201,74 @@ def test_preferences_api_roundtrip_and_validation(client):
     assert client.put("/api/v1/system/preferences", json={"wall_layout": 7}).status_code == 400
     assert client.put("/api/v1/system/preferences", json={"bogus": 1}).status_code == 400
     assert client.get("/api/v1/system/preferences").json()["wall_layout"] == 4      # failed update changed nothing
+
+
+# ── Performance dashboard API ─────────────────────────────────────────────────
+
+def test_perf_overview_history_devices_events(client):
+    import time
+    ov = client.get("/api/v1/perf/overview").json()
+    assert {"devices", "pc", "process", "health", "reconnects", "ws", "thresholds", "alerts"} <= set(ov)
+    assert ov["health"]["status"] in ("healthy", "degraded") and ov["fps_avg"] is None and "N/A" in ov["fps_note"]
+    assert ov["process"]["rss_mb"] is None or ov["process"]["rss_mb"] > 0
+    assert "Mirrorhub" in ov["process"]["note"]
+    for rng in ("5m", "15m", "1h", "session"):
+        h = client.get(f"/api/v1/perf/history?range={rng}").json()
+        assert h["range"] == rng and isinstance(h["points"], list) and len(h["points"]) <= 240
+    assert client.get("/api/v1/perf/history?range=forever").status_code == 422
+    assert isinstance(client.get("/api/v1/perf/devices").json(), list)      # dev checkouts migrate a legacy DB into the temp dir
+    assert isinstance(client.get("/api/v1/perf/events").json(), list)
+    assert client.get("/api/v1/perf/events?limit=0").status_code == 422
+    a = client.get("/api/v1/perf/alerts").json()
+    assert "active" in a and "history" in a and time
+
+
+def test_perf_thresholds_validate_and_persist(client):
+    th = client.get("/api/v1/perf/thresholds").json()
+    assert th["perf_ram_high_pct"] == 90 and "defaults" in th
+    assert client.put("/api/v1/perf/thresholds", json={"perf_ram_high_pct": 80}).json()["perf_ram_high_pct"] == 80
+    assert client.get("/api/v1/perf/overview").json()["thresholds"]["perf_ram_high_pct"] == 80
+    assert client.put("/api/v1/perf/thresholds", json={"perf_ram_high_pct": 5}).status_code == 400
+    assert client.put("/api/v1/perf/thresholds", json={"wall_layout": 4}).status_code == 400     # only perf_* keys here
+    assert client.put("/api/v1/perf/thresholds", json={"nope": 1}).status_code == 400
+
+
+def test_perf_device_table_for_registered_offline_device(client):
+    con = sqlite3.connect(str(rp.db_path()))
+    con.execute("INSERT INTO devices (device_id, device_name, battery, wifi, is_online, adb_address, last_seen, created_at, state, transport) "
+                "VALUES ('pd1','Offline Phone',50,1,0,'1.2.3.4:5555',datetime('now'),datetime('now'),'offline','wifi')")
+    con.commit()
+    con.close()
+    rows = client.get("/api/v1/perf/devices").json()
+    r = next(x for x in rows if x["device_id"] == "pd1")
+    assert r["health"] == "disconnected" and r["fps"] is None and "fps" in r["na"] and r["transport"] == "wifi"
+    ov = client.get("/api/v1/perf/overview").json()
+    assert ov["devices"]["disconnected"] >= 1
+
+
+def test_perf_client_stats_validation(client):
+    ok = {"device_id": "pd1", "profile": "normal", "received": 10, "decoded": 9, "dropped": 1, "fps": 24.0, "width": 432, "height": 960}
+    assert client.post("/api/v1/perf/client-stats", json=ok).status_code == 200
+    assert client.post("/api/v1/perf/client-stats", json={**ok, "received": -1}).status_code == 422
+    assert client.post("/api/v1/perf/client-stats", json={**ok, "fps": 99999}).status_code == 422
+    assert client.post("/api/v1/perf/client-stats", json={"device_id": "x" * 200}).status_code == 422
+
+
+def test_perf_diagnostics_export_has_no_secrets_and_valid_shapes(client, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-LEAKCHECK1234567890abcd")
+    from app.services import perf_events
+    perf_events.emit("error", r"boom at 192.168.77.5:5555 in C:\Users\someone\AppData key=sk-LEAKCHECK1234567890abcd")
+    j = client.get("/api/v1/perf/diagnostics")
+    assert j.status_code == 200
+    blob = j.text
+    assert "LEAKCHECK" not in blob and "192.168.77.5" not in blob and "someone" not in blob
+    rep = j.json()
+    assert rep["report"] == "mirrorhub-diagnostics" and rep["identifiers_included"] is False
+    assert {"overview", "thresholds", "devices", "events", "environment_checks", "summary", "system", "app"} <= set(rep)
+    txt = client.get("/api/v1/perf/diagnostics.txt")
+    assert txt.status_code == 200 and "Mirrorhub diagnostic report" in txt.text and "LEAKCHECK" not in txt.text
+    for kind in ("history", "devices", "events"):
+        r = client.get(f"/api/v1/perf/export.csv?kind={kind}")
+        assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv") and "LEAKCHECK" not in r.text
+        assert f"mirrorhub_{kind}.csv" in r.headers["content-disposition"]
+    assert client.get("/api/v1/perf/export.csv?kind=secrets").status_code == 422

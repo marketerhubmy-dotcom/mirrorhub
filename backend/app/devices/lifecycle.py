@@ -108,6 +108,15 @@ class DeviceMonitor:
 
     def _emit(self, **event) -> None:
         event.setdefault("at", datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        if event.get("type") in ("device", "adb") and event.get("action") != "state_noise":
+            try:   # mirror lifecycle events into the diagnostics event log
+                from app.services import perf_events
+                what = event.get("action") or ("ok" if event.get("ok") else "error")
+                perf_events.emit(event["type"], f"{what} {event.get('serial') or ''} {event.get('state') or ''} {event.get('message') or ''}".strip(),
+                                 level="warn" if event.get("action") in ("gone", "reconnect_failed") or event.get("ok") is False else "info",
+                                 event=event.get("action"))
+            except Exception:
+                pass
         for q in list(self._subs):
             try:
                 q.put_nowait(event)

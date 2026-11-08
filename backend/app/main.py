@@ -73,6 +73,18 @@ async def lifespan(app: FastAPI):
 
     _gc_task = asyncio.create_task(_gc_loop())
 
+    from app.services import perf, perf_events
+    _perf = perf.get_collector()
+    _perf.start()
+
+    def _forward_alert(ev: dict) -> None:       # alerts reach the UI over the existing /ws/devices channel
+        if ev["kind"] == "alert":
+            from app.devices.lifecycle import get_monitor as _gm
+            _gm()._emit(type="alert", action=ev["data"].get("event"), alert=ev["data"].get("alert"),
+                        severity=ev["data"].get("severity"), device_id=ev["device_id"], message=ev["message"])
+
+    perf_events.subscribe(_forward_alert)
+
     from app.devices.lifecycle import get_monitor
     _device_monitor = get_monitor()
     _device_monitor.start()
@@ -89,6 +101,8 @@ async def lifespan(app: FastAPI):
         stop_agents()
         _agent_task.cancel()
         _gc_task.cancel()
+        perf_events.unsubscribe(_forward_alert)
+        await _perf.stop()
         await _device_monitor.stop()
         from app.automation.core import get_engine
         await get_engine().shutdown()
@@ -136,19 +150,25 @@ async def ws_view(device_id: str, ws: WebSocket, db: AsyncSession = Depends(get_
 @app.websocket("/ws/control/{device_id}")
 async def ws_control(device_id: str, ws: WebSocket, db: AsyncSession = Depends(get_db)):
     """Browser → sends touch/keyboard commands → ADB or Android agent."""
-    await control_endpoint(device_id, ws, db)
+    from app.services.perf import track_ws
+    with track_ws("control"):
+        await control_endpoint(device_id, ws, db)
 
 
 @app.websocket("/ws/devices")
 async def ws_devices(ws: WebSocket):
     """Device lifecycle events (hot-plug, authorization, reconnect, adb outage)."""
-    await devices_endpoint(ws)
+    from app.services.perf import track_ws
+    with track_ws("devices"):
+        await devices_endpoint(ws)
 
 
 @app.websocket("/ws/video/{device_id}")
 async def ws_video(device_id: str, ws: WebSocket, db: AsyncSession = Depends(get_db)):
     """Embedded scrcpy H.264 NAL stream → browser WebCodecs decoder (?profile=thumb|normal|focus)."""
-    await video_endpoint(device_id, ws, db)
+    from app.services.perf import track_ws
+    with track_ws("video"):
+        await video_endpoint(device_id, ws, db)
 
 
 @app.websocket("/ws/execution/{device_id}")

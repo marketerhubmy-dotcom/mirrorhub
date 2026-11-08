@@ -65,6 +65,14 @@ async def run_checks() -> list[dict]:
                   str(ADB.parent / "scrcpy-server"), "Fail ini wajib untuk strim embedded; pasang semula."))
     out.append(_c("scrcpy_exe", "scrcpy.exe (pilihan, tetingkap berasingan)", "PASS" if SCRCPY.exists() else "WARN", str(SCRCPY)))
 
+    # optional: Android SDK emulator (Phase 06 – local virtual phones)
+    import os
+    roots = [os.environ.get("ANDROID_SDK_ROOT"), os.environ.get("ANDROID_HOME"),
+             os.path.join(os.environ.get("LOCALAPPDATA", ""), "Android", "Sdk")]
+    emu = next((os.path.join(r, "emulator", "emulator.exe") for r in roots if r and os.path.exists(os.path.join(r, "emulator", "emulator.exe"))), None)
+    out.append(_c("android_sdk", "Android SDK emulator (pilihan, telefon maya)", "PASS" if emu else "INFO",
+                  emu or "tidak dipasang", "" if emu else "Hanya diperlukan untuk Fasa 06 (telefon maya); lihat docs/PHASE06_PREP.md."))
+
     # port
     s = socket.socket()
     try:

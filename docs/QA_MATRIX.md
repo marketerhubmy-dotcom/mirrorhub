@@ -49,7 +49,7 @@ Legenda: PASS / FAIL / NOT TESTED. **PASS (HW)** = telefon sebenar. **PASS (sim)
 ## V1.1 (2026-11-09)
 | # | Item | Status | Bukti |
 |---|---|---|---|
-| P1 | Backend pytest | **PASS 553 lulus, 0 gagal, 14 dikuarantin** | liputan teras **79.1 %** (gate 60 %); seluruh kod **52.2 %** (maklumat, tanpa pengecualian) |
+| P1 | Backend pytest | **PASS 554 lulus, 0 gagal, 14 dikuarantin** | liputan teras **79.1 %** (gate 60 %); seluruh kod **52.2 %** (maklumat, tanpa pengecualian) |
 | P2 | Frontend `tsc`, `vite build`, **vitest 13 ujian** | **PASS** | dijalankan oleh `packaging\build.ps1` |
 | P3 | Dashboard: metrik sebenar, graf, jadual per peranti, kesihatan, amaran, peristiwa, eksport | **PASS (HW 2 Pixel)** | `HARDWARE_VALIDATION.md` V3–V9 |
 | P4 | Pengasingan multi-device (perisian) | PASS | `test_multidevice_isolation.py` (8) + `test_perf.py` (55) |

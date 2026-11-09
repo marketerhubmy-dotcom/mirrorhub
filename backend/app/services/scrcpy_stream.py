@@ -40,6 +40,8 @@ REMOTE_JAR = "/data/local/tmp/mirrorhub-scrcpy-server.jar"
 SERVER_JAR = Path(SCRCPY).parent / "scrcpy-server"
 
 # profile -> server options (thumbnail tiles vs a focused, higher quality view)
+KEYFRAME_INTERVAL_S = 2
+
 PROFILES: dict[str, dict[str, int]] = {
     "thumb": {"max_size": 480, "max_fps": 10, "video_bit_rate": 600_000},
     "normal": {"max_size": 960, "max_fps": 24, "video_bit_rate": 3_000_000},
@@ -389,6 +391,9 @@ def build_server_args(version: str, scid: str, profile: str) -> list[str]:
         "video_codec=h264",
         f"max_size={p['max_size']}", f"max_fps={p['max_fps']}",
         f"video_bit_rate={p['video_bit_rate']}",
+        # Keyframe every KEYFRAME_INTERVAL_S: some encoders (vivo/Funtouch) default to ~10 s, so a late joiner got a
+        # cached GOP of hundreds of pictures and, after any drop, waited ~10 s for the next IDR (frozen tile).
+        f"video_codec_options=i-frame-interval={KEYFRAME_INTERVAL_S}",
     ]
 
 

@@ -5,9 +5,9 @@ Dikemas kini: 2026-11-09 · Branch: `dev/performance-v1.1` (dari `dev/desktop-v1
 ## Siap dan lulus (dengan bukti)
 - Halaman **Prestasi** (kad, 8 graf + sejarah 5m/15m/1j/sesi, jadual per peranti dengan N/A+sebab, kesihatan idle≠rosak, amaran dengan hysteresis+cooldown, log peristiwa, laporan/eksport JSON/CSV tanpa rahsia) — `docs/PERFORMANCE_DASHBOARD.md`.
 - Kestabilan multi-device: pengasingan strim/input (HW 2 × Pixel 6), pelepasan soket, pembaikan kebocoran di punca (K29), reconnect per gangguan (K31).
-- Pembetulan rakaman skrin (K38, ditemui semasa regresi HW).
-- Ujian: backend 553 lulus / 14 dikuarantin, liputan teras ≈ 79 % (gate 60 %); frontend tsc + build + vitest 13.
-- Pemasang `dist/Mirrorhub-Setup-1.1.0.exe` (40.7 MB), SHA-256 `88E86A8C05B19BAFE95AB44CAA41C2BC1BFE1A7EA86FDD3687E20D76D79FCABD`; smoke 19/19 (normal) + 20/20 (terpencil); kemas kini 1.0.0 → 1.1.0 mengekalkan data.
+- Pembetulan rakaman skrin (K38) dan tile beku pada vivo V2346 (K39), kedua-duanya ditemui pada perkakasan sebenar.
+- Ujian: backend 554 lulus / 14 dikuarantin, liputan teras ≈ 79 % (gate 60 %); frontend tsc + build + vitest 13.
+- Pemasang `dist/Mirrorhub-Setup-1.1.0.exe` (40.7 MB), SHA-256 `BABB34C2B340833BFA71536C317998D4BB4DE54DC5CDE29152A2DED17892D084`; smoke 19/19 (normal) + 20/20 (terpencil); kemas kini 1.0.0 → 1.1.0 mengekalkan data.
 - HW (Pixel 6 B, aplikasi dipasang): regresi satu telefon 3/3 ALL PASS; soak 30 min (RSS +4.9 MB, 0 reconnect/ralat).
 
 ## Gagal / diperbaiki semasa sesi

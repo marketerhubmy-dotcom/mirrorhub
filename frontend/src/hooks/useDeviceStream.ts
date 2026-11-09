@@ -22,7 +22,9 @@ export interface StreamStats {
   height: number
 }
 
-const MAX_DECODE_QUEUE = 30
+// A late joiner receives the server's cached GOP in one burst (≤ ~2 s of pictures with a 2 s keyframe interval, more on
+// older servers): that is catch-up work, not lag. Only a queue far beyond that means the decoder really fell behind.
+const MAX_DECODE_QUEUE = 240
 
 export function codecFromSps(sps: Uint8Array): string {
   // sps[4] is the NAL header; profile_idc, constraint flags, level_idc follow.

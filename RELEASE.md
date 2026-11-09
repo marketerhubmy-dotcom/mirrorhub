@@ -12,13 +12,14 @@
 ## Artifak
 | Fail | Keterangan |
 |---|---|
-| `dist/Mirrorhub-Setup-1.1.0.exe` | Pemasang Windows x64, per-pengguna, tanpa admin (40.7 MB). SHA-256 `88E86A8C05B19BAFE95AB44CAA41C2BC1BFE1A7EA86FDD3687E20D76D79FCABD` (juga dalam `dist/SHA256SUMS.txt`) |
+| `dist/Mirrorhub-Setup-1.1.0.exe` | Pemasang Windows x64, per-pengguna, tanpa admin (40.7 MB). SHA-256 `BABB34C2B340833BFA71536C317998D4BB4DE54DC5CDE29152A2DED17892D084` (juga dalam `dist/SHA256SUMS.txt`) |
 `dist/` dan `build/` tidak dikomit (dijana). Binari pihak ketiga (`tools/`) dibundel oleh pemasang (ADR-006; semakan lesen adb/FFmpeg masih menunggu pemilik).
 
 ## Apa baharu
 - **Prestasi** (sidebar): kad kesihatan/peranti/strim/FPS/CPU+RAM PC dan proses Mirrorhub (dipisahkan)/reconnect; 8 graf langsung dengan sejarah 5 min/15 min/1 jam/sesi (had memori berhad); jadual per peranti (FPS, resolusi daripada SPS, bitrate, masa mula, reconnect, uptime, bateri, bingkai dihantar/digugurkan, statistik penyahkod pelayar, ralat terakhir) dengan **N/A + sebab**; kesihatan (Sihat/Terjejas/Menyambung semula/Terputus/Perlu kebenaran) yang membezakan **idle daripada bermasalah**; amaran (RAM, CPU, gelung reconnect, strim tersangkut, pertumbuhan memori, terlalu banyak strim) dengan hysteresis + cooldown dan toast; ambang boleh dikonfigurasi; log peristiwa; **salin laporan / eksport JSON / CSV** tanpa rahsia. Dokumen: `docs/PERFORMANCE_DASHBOARD.md`.
 - **Kestabilan multi-device**: pengasingan kegagalan strim, pelepasan sesi/soket, pembaikan kebocoran di punca (lihat `KNOWN_ISSUES` K29–K32), pelaporan reconnect per gangguan.
 - **Pembetulan rakaman skrin** (K38): rakam ke `/data/local/tmp`, tunggu fail siap, sahkan MP4 (`moov`); ralat jelas jika tidak lengkap. Ditemui semasa regresi perkakasan.
+- **Pembetulan tile beku pada vivo** (K39): ambang antrian penyahkod klien + keyframe 2 s. Ditemui apabila pengguna menambah telefon ketiga.
 - Backend: `/api/v1/perf/*`; adb dijalankan melalui thread (tiada subproses asyncio berkitar); `gc` global hanya jaring keselamatan 5 min.
 - Frontend: vitest (13 ujian) dalam binaan.
 

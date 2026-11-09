@@ -85,6 +85,7 @@ Kebenaran: tap/swipe/Back/Home, tiada tindakan merosakkan. Semasa sesi **satu Pi
 | V14 | Kemas kini pemasang v1.0.0 → v1.1.0 di atas pemasangan sebenar: versi 1.1.0, data/tetapan/peranti kekal, pintasan utuh, tetingkap terbuka | PowerShell |
 | V15 | **Regresi satu telefon pada aplikasi dipasang v1.1.0** (Pixel 6 B): tangkapan skrin PNG, muat naik/muat turun fail 8 MB (SHA-256 sepadan, nama berspasi/kurungan), pemasangan + nyahpasangan APK ujian sendiri, rakaman MP4 sah (`ftyp`+`moov`), automasi 3 langkah — **ALL PASS 3/3 larian berturut-turut** | `regress.py` |
 | V16 | **Penemuan: rakaman tidak lengkap** — selepas pasang/nyahpasang APK, `screenrecord` tersekat ≈ 9 s dalam `fuse_simple_request` (logcat: pengekod bermula 9 s selepas pelancaran) → rakaman dihentikan awal = MP4 3232 B tanpa `moov` (6/6 gagal dalam keadaan itu). Dibetulkan (K38): rakam ke `/data/local/tmp`, 5/5 lulus dalam keadaan yang sama; pengesahan kelengkapan + ralat jelas | `recbis.py`, logcat |
+| V17 | **Telefon ketiga (vivo V2346, Android 16, WiFi)** ditambah pengguna: dikesan sebagai peranti berasingan, alamat bertukar kepada nama mDNS dan baris yang sama dikemas kini (identiti kekal). **Penemuan:** tile beku 0 fps (K39). Dibetulkan; statistik penyahkod selepas: 381 diterima = 381 dinyahkod, 0 digugurkan. Tiga telefon kini dalam sesi yang sama | `/perf/devices`, `ws_probe.py` |
 
 ## BLOCKED
 | # | Ujian | Sebab |

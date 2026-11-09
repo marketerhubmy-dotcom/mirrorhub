@@ -249,3 +249,11 @@ def test_late_joiner_with_gop_longer_than_viewer_queue():
     assert v.queue.qsize() == 151
     hub.push(P2)
     assert not v.waiting_key
+
+
+def test_server_args_force_frequent_keyframes():
+    # vivo/Funtouch encoders default to ~10 s: late joiners then got a huge cached GOP and froze after any drop
+    for prof in ss.PROFILES:
+        args = ss.build_server_args("4.0", "0abc1234", prof)
+        assert f"video_codec_options=i-frame-interval={ss.KEYFRAME_INTERVAL_S}" in args
+    assert 1 <= ss.KEYFRAME_INTERVAL_S <= 3
